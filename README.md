@@ -9,40 +9,10 @@ CS @ Imperial College London & MIT · Machine Learning · Systems · Quant · Fu
 
 ### Projects
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-**[ASR-Pipeline](https://github.com/yuhanwang14/ASR-Pipeline)**<br/>
-GPU-accelerated speech transcription with speaker diarization & LLM post-processing. Runs on a single RTX 4070 (8GB VRAM).<br/>
-`Python` `PyTorch` `Whisper` `CUDA`
-
-</td>
-<td width="50%" valign="top">
-
-**[Pre-Market Anomaly Detector](https://github.com/yuhanwang14/Pre-Market-Opening-Price-Anomaly-Detector)**<br/>
-Leakage-safe forecasting pipeline for pre-market opening prices using prior-day & benchmark signals.<br/>
-`Python` `Quant` `ML`
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-**[Spatial History Intelligence](https://github.com/yuhanwang14/Spatial-History-Intelligence)**<br/>
-AI-powered map platform revealing real-time history, culture & insights with country comparisons.<br/>
-`TypeScript` `React` `AI`
-
-</td>
-<td width="50%" valign="top">
-
-**[WACC Compiler](https://github.com/yuhanwang14/WACC-Compiler)**<br/>
-Full compiler targeting AArch64 — lexical, syntactic & semantic analysis to executable assembly via GCC/QEMU.<br/>
-`Scala` `AArch64` `Compilers`
-
-</td>
-</tr>
-</table>
+<a href="https://github.com/yuhanwang14/ASR-Pipeline"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=ASR-Pipeline&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
+<a href="https://github.com/yuhanwang14/Pre-Market-Opening-Price-Anomaly-Detector"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Pre-Market-Opening-Price-Anomaly-Detector&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
+<a href="https://github.com/yuhanwang14/Spatial-History-Intelligence"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Spatial-History-Intelligence&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
+<a href="https://github.com/yuhanwang14/WACC-Compiler"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=WACC-Compiler&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
 
 ---
 
@@ -55,7 +25,7 @@ Full compiler targeting AArch64 — lexical, syntactic & semantic analysis to ex
 
 ### Stats
 
-<img width="49%" src="https://github-readme-stats.vercel.app/api?username=yuhanwang14&show_icons=true&theme=tokyonight&hide_border=true&count_private=true&bg_color=0d1117" />
+<img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api?username=yuhanwang14&show_icons=true&theme=tokyonight&hide_border=true&count_private=true&bg_color=0d1117" />
 <img width="49%" src="https://streak-stats.demolab.com/?user=yuhanwang14&theme=tokyonight&hide_border=true&background=0d1117" />
 
 <br/>
