@@ -9,7 +9,7 @@
 
 <a href="https://github.com/yuhanwang14/ASR-Pipeline"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=ASR-Pipeline&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
 <a href="https://github.com/yuhanwang14/Obsidian-Operator"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Obsidian-Operator&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
-<a href="https://github.com/yuhanwang14/Pre-Market-Opening-Price-Anomaly-Detector"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Pre-Market-Opening-Price-Anomaly-Detector&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
+<a href="https://github.com/yuhanwang14/Opening-Anomaly-Detector"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Opening-Anomaly-Detector&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
 <a href="https://github.com/yuhanwang14/Spatial-History-Intelligence"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Spatial-History-Intelligence&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
 <a href="https://github.com/yuhanwang14/WACC-Compiler"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=WACC-Compiler&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a>
 
