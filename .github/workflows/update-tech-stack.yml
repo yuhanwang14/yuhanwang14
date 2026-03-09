@@ -1,0 +1,108 @@
+name: Update Tech Stack
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # weekly on Monday
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch languages and update README
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch language stats across all public repos
+          langs=$(gh api users/${{ github.repository_owner }}/repos --paginate -q '.[].languages_url' \
+            | while read url; do
+                gh api "$url" 2>/dev/null
+              done \
+            | jq -s 'map(to_entries[]) | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | sort_by(-.value) | from_entries')
+
+          echo "Language stats:"
+          echo "$langs" | jq .
+
+          # Map GitHub language names to skillicons.dev icon IDs
+          declare -A lang_map=(
+            ["Python"]="py"
+            ["TypeScript"]="ts"
+            ["JavaScript"]="js"
+            ["Go"]="go"
+            ["Rust"]="rust"
+            ["C"]="c"
+            ["C++"]="cpp"
+            ["C#"]="cs"
+            ["Java"]="java"
+            ["Kotlin"]="kotlin"
+            ["Scala"]="scala"
+            ["Swift"]="swift"
+            ["Ruby"]="ruby"
+            ["PHP"]="php"
+            ["Dart"]="dart"
+            ["Haskell"]="haskell"
+            ["Lua"]="lua"
+            ["Perl"]="perl"
+            ["R"]="r"
+            ["Julia"]="julia"
+            ["Elixir"]="elixir"
+            ["Clojure"]="clojure"
+            ["OCaml"]="ocaml"
+            ["Zig"]="zig"
+            ["Nim"]="nim"
+            ["Crystal"]="crystal"
+            ["Fortran"]="fortran"
+            ["HTML"]="html"
+            ["CSS"]="css"
+            ["Shell"]="bash"
+            ["Nix"]="nix"
+            ["MATLAB"]="matlab"
+            ["Solidity"]="solidity"
+            ["V"]="v"
+            ["Verilog"]="verilog"
+          )
+
+          # Build comma-separated icon list from top languages
+          icons=""
+          for lang in $(echo "$langs" | jq -r 'keys[]'); do
+            id="${lang_map[$lang]}"
+            if [ -n "$id" ]; then
+              if [ -n "$icons" ]; then
+                icons="$icons,$id"
+              else
+                icons="$id"
+              fi
+            fi
+          done
+
+          echo "Icons: $icons"
+
+          if [ -z "$icons" ]; then
+            echo "No languages matched, skipping update"
+            exit 0
+          fi
+
+          # Update README between markers
+          new_line='<img src="https:\/\/skillicons.dev\/icons?i='"$icons"'\&theme=dark" \/>'
+          sed -i '/<!-- TECH:LANGUAGES:START -->/,/<!-- TECH:LANGUAGES:END -->/{
+            /<!-- TECH:LANGUAGES:START -->/{
+              n
+              s|.*|'"$new_line"'|
+            }
+          }' README.md
+
+          echo "Updated README:"
+          sed -n '/<!-- TECH:LANGUAGES:START -->/,/<!-- TECH:LANGUAGES:END -->/p' README.md
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet README.md && echo "No changes" && exit 0
+          git add README.md
+          git commit -m "chore: update tech stack languages"
+          git push

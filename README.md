@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/headline.svg" alt="Agent System | Trading | Quant | Infrastructure" />
+
 <a href="https://yuhanwang14.github.io/"><img src="https://img.shields.io/badge/website-000?style=for-the-badge&logo=safari&logoColor=white" alt="Website"/></a>&nbsp;&nbsp;
 <a href="https://www.linkedin.com/in/yuhan-wang-5546832a2/"><img src="https://img.shields.io/badge/linkedin-000?style=for-the-badge&logo=linkedin&logoColor=0A66C2" alt="LinkedIn"/></a>
 
@@ -18,7 +20,10 @@
 
 ### Tech
 
-<img src="https://skillicons.dev/icons?i=py,ts,scala,rust,go,c,cpp&theme=dark" /><br/><br/>
+<!-- TECH:LANGUAGES:START -->
+<img src="https://skillicons.dev/icons?i=py,ts,scala,rust,go,c,cpp&theme=dark" />
+<!-- TECH:LANGUAGES:END -->
+<br/><br/>
 <img src="https://skillicons.dev/icons?i=pytorch,react,docker,git,linux&theme=dark" />
 
 ---
