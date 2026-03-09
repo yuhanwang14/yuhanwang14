@@ -23,7 +23,7 @@
 
 ### Stats
 
-<img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api?username=yuhanwang14&show_icons=true&theme=tokyonight&hide_border=true&count_private=true&include_all_commits=true&hide_rank=true&card_width=350&bg_color=0d1117" />
+<img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api?username=yuhanwang14&show_icons=true&theme=tokyonight&hide_border=true&count_private=true&include_all_commits=true&hide_rank=true&hide=issues,contribs&bg_color=0d1117" />
 <img width="49%" src="https://streak-stats-sigma-plum.vercel.app/?user=yuhanwang14&theme=tokyonight&hide_border=true&background=0d1117" />
 
 <br/>
