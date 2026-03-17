@@ -21,7 +21,7 @@
 ### Tech
 
 <!-- TECH:LANGUAGES:START -->
-<img src="https://skillicons.dev/icons?i=c,cpp,css,dart,go,html,java,js,kotlin,php,py,ruby,rust,scala,bash,swift,ts&theme=dark" />
+<img src="https://skillicons.dev/icons?i=c,cpp,dart,go,java,kotlin,php,py,rust,scala,bash,swift,ts&theme=dark" />
 <!-- TECH:LANGUAGES:END -->
 <br/><br/>
 <img src="https://skillicons.dev/icons?i=pytorch,react,docker,git,linux&theme=dark" />
