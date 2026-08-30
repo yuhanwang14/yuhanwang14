@@ -1,9 +1,9 @@
 <div align="center">
 
-<img src="assets/headline.svg?v=6" alt="Computer Vision · Embodied Intelligence · Agentic Framework · Quantitative Trading" />
+<img src="assets/headline.svg?v=7" alt="Computer Vision · Embodied Intelligence · Agentic Framework · Quantitative Trading" />
 
-<a href="https://yuhanwang14.github.io/"><img src="assets/link-website.svg?v=1" alt="Yuhan Wang's website" /></a>&nbsp;&nbsp;
-<a href="https://www.linkedin.com/in/yuhan-wang-5546832a2/"><img src="assets/link-linkedin.svg?v=1" alt="Yuhan Wang on LinkedIn" /></a>
+<a href="https://yuhanwang14.github.io/"><img src="assets/link-website.svg?v=2" alt="Yuhan Wang's website" /></a>&nbsp;&nbsp;
+<a href="https://www.linkedin.com/in/yuhan-wang-5546832a2/"><img src="assets/link-linkedin.svg?v=2" alt="Yuhan Wang on LinkedIn" /></a>
 
 <!--
 ### Projects
@@ -20,8 +20,8 @@
   <img src="assets/engram-wordmark-light.png?v=2" width="180" alt="Engram" />
 </picture>
 
-<a href="https://engramai.co"><img src="assets/link-engram.svg?v=1" width="140" alt="Engram website" /></a>&nbsp;&nbsp;
-<a href="https://github.com/engramai-co"><img src="assets/link-engram-github.svg?v=1" width="140" alt="Engram on GitHub" /></a>
+<a href="https://engramai.co"><img src="assets/link-engram.svg?v=2" width="140" alt="Engram website" /></a>&nbsp;&nbsp;
+<a href="https://github.com/engramai-co"><img src="assets/link-engram-github.svg?v=2" width="140" alt="Engram on GitHub" /></a>
 
 ---
 
