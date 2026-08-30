@@ -2,10 +2,8 @@
 
 <img src="assets/headline.svg?v=6" alt="Computer Vision · Embodied Intelligence · Agentic Framework · Quantitative Trading" />
 
-<a href="https://yuhanwang14.github.io/"><img src="https://img.shields.io/badge/website-000?style=for-the-badge&logo=safari&logoColor=white" alt="Website"/></a>&nbsp;&nbsp;
-<a href="https://www.linkedin.com/in/yuhan-wang-5546832a2/"><img src="https://img.shields.io/badge/linkedin-000?style=for-the-badge&logo=linkedin&logoColor=0A66C2" alt="LinkedIn"/></a>
-
----
+<a href="https://yuhanwang14.github.io/"><img src="assets/link-website.svg?v=1" alt="Yuhan Wang's website" /></a>&nbsp;&nbsp;
+<a href="https://www.linkedin.com/in/yuhan-wang-5546832a2/"><img src="assets/link-linkedin.svg?v=1" alt="Yuhan Wang on LinkedIn" /></a>
 
 <!--
 ### Projects
@@ -16,7 +14,14 @@
 
 ---
 
-### Tech
+### Engram
+
+<a href="https://engramai.co"><img src="assets/link-engram.svg?v=1" alt="Engram website" /></a>&nbsp;&nbsp;
+<a href="https://github.com/engramai-co"><img src="assets/link-engram-github.svg?v=1" alt="Engram on GitHub" /></a>
+
+---
+
+### Technical Stack
 
 <!-- TECH:LANGUAGES:START -->
 <img src="https://skillicons.dev/icons?i=cpp,py,scala,dart,kotlin,rust,ts,bash&theme=dark" alt="Most-used programming languages" />
@@ -26,7 +31,7 @@
 
 ---
 
-### Stats
+### GitHub Activity
 
 <img width="38%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/stats.svg" alt="Yuhan Wang's GitHub stats" />
 <img width="58%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/streak.svg" alt="Yuhan Wang's GitHub contribution streak" />
