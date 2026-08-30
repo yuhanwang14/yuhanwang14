@@ -1,17 +1,32 @@
-name: Generate Snake
+name: Refresh Profile Assets
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - .github/workflows/snake.yml
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
+
+concurrency:
+  group: profile-assets
+  cancel-in-progress: false
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
+      - name: Load last-known-good assets
+        uses: actions/checkout@v4
+        with:
+          ref: output
+          path: previous-output
+
       - name: Generate snake SVGs
         uses: Platane/snk/svg-only@v3
         with:
@@ -22,7 +37,71 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push to output branch
+      - name: Refresh dynamic cards
+        shell: bash
+        env:
+          STATS_BASE_URL: https://github-readme-stats-gules-psi-52.vercel.app
+          STREAK_BASE_URL: https://streak-stats-sigma-plum.vercel.app
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist/cards
+          cp -f previous-output/cards/*.svg dist/cards/ 2>/dev/null || true
+          cp -f previous-output/stats.svg dist/stats.svg 2>/dev/null || true
+          cp -f previous-output/streak.svg dist/streak.svg 2>/dev/null || true
+
+          fetch_svg() {
+            local label="$1"
+            local url="$2"
+            local destination="$3"
+            local temporary
+            temporary="$(mktemp)"
+
+            if curl --fail --location --silent --show-error \
+              --retry 3 --retry-delay 2 --retry-all-errors --max-time 45 \
+              "$url" --output "$temporary" \
+              && [ "$(wc -c < "$temporary")" -gt 500 ] \
+              && grep -q '<svg' "$temporary" \
+              && ! grep -Eiq 'Something went wrong|Invalid upstream response|INVALID_UPSTREAM_RESPONSE|DEPLOYMENT_DISABLED|Payment required' "$temporary"; then
+              mv "$temporary" "$destination"
+              echo "Updated $label"
+            else
+              rm -f "$temporary"
+              echo "::warning title=$label refresh failed::Keeping the last-known-good SVG."
+            fi
+          }
+
+          pin_url() {
+            local repo="$1"
+            printf '%s/api/pin/?username=yuhanwang14&repo=%s&theme=tokyonight&hide_border=true&bg_color=0d1117&cache_seconds=21600' "$STATS_BASE_URL" "$repo"
+          }
+
+          fetch_svg "PAGE-4D" "$(pin_url PAGE-4D)" dist/cards/page-4d.svg &
+          fetch_svg "Obsidian-Operator" "$(pin_url Obsidian-Operator)" dist/cards/obsidian-operator.svg &
+          fetch_svg "GitHub stats" \
+            "$STATS_BASE_URL/api?username=yuhanwang14&show_icons=true&theme=tokyonight&hide_border=true&count_private=true&include_all_commits=true&hide_rank=true&bg_color=0d1117&cache_seconds=21600" \
+            dist/stats.svg &
+          fetch_svg "Contribution streak" \
+            "$STREAK_BASE_URL/?user=yuhanwang14&theme=tokyonight&hide_border=true&background=0d1117" \
+            dist/streak.svg &
+
+          wait
+
+          required_assets=(
+            dist/cards/page-4d.svg
+            dist/cards/obsidian-operator.svg
+            dist/stats.svg
+            dist/streak.svg
+          )
+
+          for asset in "${required_assets[@]}"; do
+            if [ ! -s "$asset" ]; then
+              echo "::error title=Missing profile asset::$asset has no current or last-known-good SVG."
+              exit 1
+            fi
+          done
+
+      - name: Publish profile assets
         uses: crazy-max/ghaction-github-pages@v4
         with:
           target_branch: output

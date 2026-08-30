@@ -17,12 +17,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Fetch language stats across all public repos
-          langs=$(gh api users/${{ github.repository_owner }}/repos --paginate -q '.[].languages_url' \
+          # Fetch language stats across owned public repos (exclude forks)
+          langs=$(gh api users/${{ github.repository_owner }}/repos --paginate -q '.[] | select(.fork == false) | .languages_url' \
             | while read url; do
                 gh api "$url" 2>/dev/null
               done \
-            | jq -s 'map(to_entries[]) | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | sort_by(-.value) | from_entries')
+            | jq -s 'map(to_entries[]) | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | sort_by(-.value)')
 
           echo "Language stats:"
           echo "$langs" | jq .
@@ -66,9 +66,10 @@ jobs:
             ["Verilog"]="verilog"
           )
 
-          # Build comma-separated icon list from top languages
+          # Build a comma-separated icon list from the top 8 matched languages
           icons=""
-          for lang in $(echo "$langs" | jq -r 'keys[]'); do
+          icon_count=0
+          while IFS= read -r lang; do
             id="${lang_map[$lang]}"
             if [ -n "$id" ]; then
               if [ -n "$icons" ]; then
@@ -76,8 +77,12 @@ jobs:
               else
                 icons="$id"
               fi
+              icon_count=$((icon_count + 1))
+              if [ "$icon_count" -ge 8 ]; then
+                break
+              fi
             fi
-          done
+          done < <(echo "$langs" | jq -r '.[].key')
 
           echo "Icons: $icons"
 
@@ -87,7 +92,7 @@ jobs:
           fi
 
           # Update README between markers
-          new_line='<img src="https:\/\/skillicons.dev\/icons?i='"$icons"'\&theme=dark" \/>'
+          new_line='<img src="https:\/\/skillicons.dev\/icons?i='"$icons"'\&theme=dark" alt="Most-used programming languages" \/>'
           sed -i '/<!-- TECH:LANGUAGES:START -->/,/<!-- TECH:LANGUAGES:END -->/{
             /<!-- TECH:LANGUAGES:START -->/{
               n

@@ -9,10 +9,10 @@
 
 ### Projects
 
-<a href="https://github.com/yuhanwang14/PAGE-4D"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=PAGE-4D&theme=tokyonight&hide_border=true&bg_color=0d1117&v=3" /></a>
+<a href="https://github.com/yuhanwang14/PAGE-4D"><img width="49%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/cards/page-4d.svg" alt="PAGE-4D repository card" /></a>
 <!-- <a href="https://github.com/yuhanwang14/ASR-Pipeline"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=ASR-Pipeline&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a> -->
 <!-- <a href="https://github.com/yuhanwang14/NPC-Trading"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=NPC-Trading&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a> -->
-<a href="https://github.com/yuhanwang14/Obsidian-Operator"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Obsidian-Operator&theme=tokyonight&hide_border=true&bg_color=0d1117&v=4" /></a>
+<a href="https://github.com/yuhanwang14/Obsidian-Operator"><img width="49%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/cards/obsidian-operator.svg" alt="Obsidian-Operator repository card" /></a>
 <!-- <a href="https://github.com/yuhanwang14/Claude-Usage-TUI"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Claude-Usage-TUI&theme=tokyonight&hide_border=true&bg_color=0d1117" /></a> -->
 <!-- <a href="https://github.com/yuhanwang14/Spatial-History-Intelligence"><img width="49%" src="https://github-readme-stats-gules-psi-52.vercel.app/api/pin/?username=yuhanwang14&repo=Spatial-History-Intelligence&theme=tokyonight&hide_border=true&bg_color=0d1117&v=2" /></a> -->
 
@@ -21,20 +21,24 @@
 ### Tech
 
 <!-- TECH:LANGUAGES:START -->
-<img src="https://skillicons.dev/icons?i=c,cpp,css,dart,go,go,html,java,js,kotlin,nix,php,py,ruby,rust,scala,bash,swift,ts&theme=dark" />
+<img src="https://skillicons.dev/icons?i=cpp,py,scala,dart,kotlin,rust,ts,bash&theme=dark" alt="Most-used programming languages" />
 <!-- TECH:LANGUAGES:END -->
 <br/><br/>
-<img src="https://skillicons.dev/icons?i=pytorch,react,docker,git,linux&theme=dark" />
+<img src="https://skillicons.dev/icons?i=pytorch,react,docker,git,linux&theme=dark" alt="Frameworks and tools" />
 
 ---
 
 ### Stats
 
-<img width="38%" src="https://github-readme-stats-gules-psi-52.vercel.app/api?username=yuhanwang14&show_icons=true&theme=tokyonight&hide_border=true&count_private=true&include_all_commits=true&hide_rank=true&bg_color=0d1117" />
-<img width="58%" src="https://streak-stats-sigma-plum.vercel.app/?user=yuhanwang14&theme=tokyonight&hide_border=true&background=0d1117" />
+<img width="38%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/stats.svg" alt="Yuhan Wang's GitHub stats" />
+<img width="58%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/streak.svg" alt="Yuhan Wang's GitHub contribution streak" />
 
 <br/>
 
-<img src="https://github-readme-activity-graph.vercel.app/graph?username=yuhanwang14&theme=tokyo-night&hide_border=true&bg_color=0d1117&color=70a5fd&line=bf91f3&point=70a5fd" width="98%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/github-snake-dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/github-snake.svg" />
+  <img src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/github-snake.svg" width="98%" alt="Contribution graph animation" />
+</picture>
 
 </div>
