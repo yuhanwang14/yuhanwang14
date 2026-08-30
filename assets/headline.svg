@@ -1,61 +1,56 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="60">
-  <foreignObject width="800" height="60">
-    <div xmlns="http://www.w3.org/1999/xhtml">
-      <style>
-        @keyframes typing {
-          from { width: 0 }
-          to { width: 34ch }
-        }
-        @keyframes blink {
-          0%, 100% { border-color: transparent }
-          50% { border-color: currentColor }
-        }
-        @keyframes glow {
-          0%, 100% {
-            text-shadow:
-              0 0 8px rgba(56, 182, 255, 0.4),
-              0 0 20px rgba(56, 182, 255, 0.15);
-          }
-          50% {
-            text-shadow:
-              0 0 16px rgba(56, 182, 255, 0.6),
-              0 0 40px rgba(56, 182, 255, 0.3),
-              0 0 60px rgba(56, 182, 255, 0.15);
-          }
-        }
-        .wrap {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 60px;
-          overflow: hidden;
-        }
-        .line {
-          font-family: "Courier New", Courier, monospace;
-          font-size: 20px;
-          font-weight: bold;
-          color: #58a6ff;
-          white-space: nowrap;
-          overflow: hidden;
-          border-right: 2px solid;
-          width: 0;
-          animation:
-            typing 2.5s steps(34) 0.5s forwards,
-            blink 0.8s step-end infinite,
-            glow 4s ease-in-out 3s infinite;
-        }
-        @media (prefers-color-scheme: light) {
-          .line {
-            color: #0550ae;
-            animation:
-              typing 2.5s steps(34) 0.5s forwards,
-              blink 0.8s step-end infinite;
-          }
-        }
-      </style>
-      <div class="wrap">
-        <span class="line">Agent | Quant | Robotics | CV </span>
-      </div>
-    </div>
-  </foreignObject>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="800"
+  height="72"
+  viewBox="0 0 800 72"
+  role="img"
+  aria-labelledby="headline-title headline-description"
+>
+  <title id="headline-title">Agent, Quant, Robotics, and CV</title>
+  <desc id="headline-description">Yuhan Wang's focus areas</desc>
+
+  <style>
+    .rule {
+      stroke: #30363d;
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .label {
+      fill: #c9d1d9;
+      font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+      font-size: 20px;
+      font-weight: 560;
+      letter-spacing: 0.4px;
+    }
+
+    .accent {
+      fill: #58a6ff;
+      font-weight: 650;
+    }
+
+    .separator {
+      fill: #484f58;
+    }
+
+    @media (prefers-color-scheme: light) {
+      .rule { stroke: #d0d7de; }
+      .label { fill: #57606a; }
+      .accent { fill: #0969da; }
+      .separator { fill: #afb8c1; }
+    }
+  </style>
+
+  <g aria-hidden="true">
+    <line class="rule" x1="40" y1="36" x2="128" y2="36" />
+    <line class="rule" x1="672" y1="36" x2="760" y2="36" />
+
+    <text class="label accent" x="191" y="43" text-anchor="middle">Agent</text>
+    <circle class="separator" cx="263" cy="36" r="2.5" />
+    <text class="label" x="331" y="43" text-anchor="middle">Quant</text>
+    <circle class="separator" cx="399" cy="36" r="2.5" />
+    <text class="label" x="492" y="43" text-anchor="middle">Robotics</text>
+    <circle class="separator" cx="585" cy="36" r="2.5" />
+    <text class="label" x="628" y="43" text-anchor="middle">CV</text>
+  </g>
 </svg>
