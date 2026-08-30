@@ -14,7 +14,13 @@
 
 ---
 
-### Engram
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/engram-wordmark-dark.png?v=1" />
+  <source media="(prefers-color-scheme: light)" srcset="assets/engram-wordmark-light.png?v=1" />
+  <img src="assets/engram-wordmark-light.png?v=1" width="320" alt="Engram" />
+</picture>
+
+<br/>
 
 <a href="https://engramai.co"><img src="assets/link-engram.svg?v=1" alt="Engram website" /></a>&nbsp;&nbsp;
 <a href="https://github.com/engramai-co"><img src="assets/link-engram-github.svg?v=1" alt="Engram on GitHub" /></a>
