@@ -1,12 +1,12 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
   width="800"
-  height="72"
-  viewBox="0 0 800 72"
+  height="96"
+  viewBox="0 0 800 96"
   role="img"
   aria-labelledby="headline-title headline-description"
 >
-  <title id="headline-title">Agent, Quant, Robotics, and CV</title>
+  <title id="headline-title">Computer Vision, Embodied Intelligence, Agentic Framework, and Quantitative Trading</title>
   <desc id="headline-description">Yuhan Wang's focus areas</desc>
 
   <style>
@@ -19,38 +19,32 @@
     .label {
       fill: #c9d1d9;
       font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 560;
-      letter-spacing: 0.4px;
-    }
-
-    .accent {
-      fill: #58a6ff;
-      font-weight: 650;
+      letter-spacing: 0.2px;
     }
 
     .separator {
-      fill: #484f58;
+      fill: #58a6ff;
     }
 
     @media (prefers-color-scheme: light) {
       .rule { stroke: #d0d7de; }
       .label { fill: #57606a; }
-      .accent { fill: #0969da; }
-      .separator { fill: #afb8c1; }
+      .separator { fill: #0969da; }
     }
   </style>
 
   <g aria-hidden="true">
-    <line class="rule" x1="40" y1="36" x2="128" y2="36" />
-    <line class="rule" x1="672" y1="36" x2="760" y2="36" />
+    <line class="rule" x1="40" y1="48" x2="120" y2="48" />
+    <line class="rule" x1="680" y1="48" x2="760" y2="48" />
 
-    <text class="label accent" x="191" y="43" text-anchor="middle">Agent</text>
-    <circle class="separator" cx="263" cy="36" r="2.5" />
-    <text class="label" x="331" y="43" text-anchor="middle">Quant</text>
-    <circle class="separator" cx="399" cy="36" r="2.5" />
-    <text class="label" x="492" y="43" text-anchor="middle">Robotics</text>
-    <circle class="separator" cx="585" cy="36" r="2.5" />
-    <text class="label" x="628" y="43" text-anchor="middle">CV</text>
+    <text class="label" x="252" y="35" text-anchor="middle">Computer Vision</text>
+    <circle class="separator" cx="400" cy="29" r="2.5" />
+    <text class="label" x="548" y="35" text-anchor="middle">Embodied Intelligence</text>
+
+    <text class="label" x="252" y="69" text-anchor="middle">Agentic Framework</text>
+    <circle class="separator" cx="400" cy="63" r="2.5" />
+    <text class="label" x="548" y="69" text-anchor="middle">Quantitative Trading</text>
   </g>
 </svg>
