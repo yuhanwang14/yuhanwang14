@@ -2,7 +2,7 @@
 
 <img src="assets/headline.svg?v=7" alt="Computer Vision · Embodied Intelligence · Agentic Framework · Quantitative Trading" />
 
-<a href="https://yuhanwang14.github.io/"><img src="assets/link-website.svg?v=2" alt="Yuhan Wang's website" /></a>&nbsp;&nbsp;
+<a href="https://yuhanwang.page/"><img src="assets/link-website.svg?v=2" alt="Yuhan Wang's website" /></a>&nbsp;&nbsp;
 <a href="https://www.linkedin.com/in/yuhan-wang-5546832a2/"><img src="assets/link-linkedin.svg?v=2" alt="Yuhan Wang on LinkedIn" /></a>
 
 <!--
