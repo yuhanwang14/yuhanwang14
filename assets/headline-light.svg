@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="96" viewBox="0 0 800 96" role="img" aria-labelledby="headline-title">
+  <title id="headline-title">Computer Vision | Embodied Intelligence | Agentic Framework | Quantitative Trading</title>
+  <style>
+    text { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 20px; font-weight: 700; fill: #0550ae; }
+  </style>
+  <defs>
+    <clipPath id="typed-0">
+      <rect x="160" y="20" width="0" height="30">
+        <animate attributeName="width" begin="0.500s" dur="2.535s" calcMode="discrete" fill="freeze" values="12;24;36;48;60;72;84;96;108;120;132;144;156;168;180;192;204;216;228;240;252;264;276;288;300;312;324;336;348;360;372;384;396;408;420;432;444;456;468" />
+      </rect>
+    </clipPath>
+    <clipPath id="typed-1">
+      <rect x="160" y="52" width="0" height="30">
+        <animate attributeName="width" begin="3.385s" dur="2.600s" calcMode="discrete" fill="freeze" values="12;24;36;48;60;72;84;96;108;120;132;144;156;168;180;192;204;216;228;240;252;264;276;288;300;312;324;336;348;360;372;384;396;408;420;432;444;456;468;480" />
+      </rect>
+    </clipPath>
+  </defs>
+  <g>
+    <text x="160" y="40" textLength="468" lengthAdjust="spacing" clip-path="url(#typed-0)">Computer Vision | Embodied Intelligence</text>
+    <text x="160" y="72" textLength="480" lengthAdjust="spacing" clip-path="url(#typed-1)">Agentic Framework | Quantitative Trading</text>
+    <rect x="160" y="23" width="2.5" height="22" fill="#0550ae">
+      <animate attributeName="x" begin="0.500s" dur="2.535s" calcMode="discrete" fill="freeze" values="174;186;198;210;222;234;246;258;270;282;294;306;318;330;342;354;366;378;390;402;414;426;438;450;462;474;486;498;510;522;534;546;558;570;582;594;606;618;630" />
+      <set attributeName="y" to="55" begin="3.385s" fill="freeze" />
+      <animate attributeName="x" begin="3.385s" dur="2.600s" calcMode="discrete" fill="freeze" values="174;186;198;210;222;234;246;258;270;282;294;306;318;330;342;354;366;378;390;402;414;426;438;450;462;474;486;498;510;522;534;546;558;570;582;594;606;618;630;642" />
+      <animate attributeName="opacity" values="1;0" dur="1s" calcMode="discrete" repeatCount="indefinite" />
+    </rect>
+  </g>
+</svg>

@@ -1,0 +1,7 @@
+{
+  "bucket": "week",
+  "periods": 52,
+  "showBars": true,
+  "line": "average",
+  "averageWindow": 4
+}

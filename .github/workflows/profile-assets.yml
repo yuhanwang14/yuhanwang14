@@ -6,7 +6,7 @@ on:
     paths:
       - README.md
       - scripts/**
-      - .github/workflows/snake.yml
+      - .github/workflows/profile-assets.yml
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
@@ -36,17 +36,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Generate snake SVGs
-        uses: Platane/snk/svg-only@v3
-        with:
-          github_user_name: ${{ github.repository_owner }}
-          outputs: |
-            dist/github-snake.svg
-            dist/github-snake-dark.svg?palette=github-dark
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Render activity card
+      - name: Render activity card and chart
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,13 +44,18 @@ jobs:
         run: |
           set -euo pipefail
 
+          assets=(activity-dark.svg activity-light.svg activity-chart-dark.svg activity-chart-light.svg)
+
           if ! node scripts/render-activity.mjs dist; then
-            echo "::warning title=Activity card refresh failed::Keeping the last-known-good SVGs."
-            cp -f previous-output/activity-dark.svg previous-output/activity-light.svg dist/ 2>/dev/null || true
+            echo "::warning title=Activity refresh failed::Keeping the last-known-good SVGs."
+            mkdir -p dist
+            for asset in "${assets[@]}"; do
+              cp -f "previous-output/$asset" dist/ 2>/dev/null || true
+            done
           fi
 
-          for asset in dist/activity-dark.svg dist/activity-light.svg dist/github-snake.svg dist/github-snake-dark.svg; do
-            if [ ! -s "$asset" ]; then
+          for asset in "${assets[@]}"; do
+            if [ ! -s "dist/$asset" ]; then
               echo "::error title=Missing profile asset::$asset has no current or last-known-good version."
               exit 1
             fi
