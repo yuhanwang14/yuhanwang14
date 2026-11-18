@@ -7,6 +7,8 @@
 // Vendored, generated and lock files are skipped, and so are bulk imports: commits that add
 // more than importLimit lines at once, which nearly always copy code in rather than write it.
 // Only totals per language leave this module; repository names are never rendered.
+// Workflow logs on a public repository are public, so nothing here logs repository names,
+// git output or command lines, and the token reaches git through the environment only.
 
 import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -128,7 +130,14 @@ export async function measureAuthoredLanguages({ token, importLimit = 8000, log 
   log("Repositories with authored commits: " + repositories.length + "; author emails: " + emails.length);
 
   const workspace = await mkdtemp(join(tmpdir(), "authored-languages-"));
-  const auth = "AUTHORIZATION: basic " + Buffer.from("x-access-token:" + token).toString("base64");
+  const encoded = Buffer.from("x-access-token:" + token).toString("base64");
+  if (process.env.GITHUB_ACTIONS === "true") console.log("::add-mask::" + encoded);
+  const gitEnv = Object.assign({}, process.env, {
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader",
+    GIT_CONFIG_VALUE_0: "AUTHORIZATION: basic " + encoded,
+  });
   const seen = new Set();
   const totals = new Map();
   let skippedImports = 0;
@@ -139,14 +148,14 @@ export async function measureAuthoredLanguages({ token, importLimit = 8000, log 
     const logs = await mapLimit(repositories, 6, async (repository) => {
       const directory = join(workspace, repository.name.replace("/", "__") + ".git");
       try {
-        await run("git", ["-c", "http.extraHeader=" + auth, "clone", "--bare", "--quiet", "--single-branch", "--no-tags", "https://github.com/" + repository.name + ".git", directory], { maxBuffer: 1 << 20 });
+        await run("git", ["clone", "--bare", "--quiet", "--single-branch", "--no-tags", "https://github.com/" + repository.name + ".git", directory], { env: gitEnv, maxBuffer: 1 << 20 });
         const args = ["-C", directory, "log", "--no-merges", "--numstat", "--format=@@%H", "--fixed-strings", "-i"];
         for (const email of emails) args.push("--author=" + email);
-        const { stdout } = await run("git", args, { maxBuffer: 1 << 28 });
+        const { stdout } = await run("git", args, { env: gitEnv, maxBuffer: 1 << 28 });
         return { repository, stdout };
       } catch (error) {
         failed += 1;
-        log("Skipped " + repository.name.split("/")[0] + "/…: " + String(error.message).split("\n")[0].slice(0, 120));
+        log("A repository could not be read (git exit code " + (typeof error.code === "number" ? error.code : "unknown") + ").");
         return { repository, stdout: "" };
       }
     });
