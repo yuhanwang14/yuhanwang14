@@ -1,0 +1,14 @@
+{
+  "chart": {
+    "bucket": "week",
+    "periods": 52,
+    "showBars": true,
+    "line": "average",
+    "averageWindow": 4
+  },
+  "languages": {
+    "count": 8,
+    "exclude": ["Markdown", "MDX", "TeX", "Jupyter Notebook", "HTML", "CSS", "SCSS", "Makefile", "CMake", "Dockerfile", "Batchfile"],
+    "tools": ["PyTorch", "React", "Docker", "Git", "Linux"]
+  }
+}

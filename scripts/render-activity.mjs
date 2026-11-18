@@ -1,45 +1,36 @@
-// Renders the "GitHub Activity" section of the profile README.
-//
-// Every number comes from the public contribution calendar (the green grid on
-// github.com/<login>), read through the GitHub GraphQL API. Those counts are the
-// same for any viewer, so visitors can verify them against the profile.
+// Renders the data plates of the profile README from live GitHub data.
 //
 // Usage: GITHUB_TOKEN=<token> node scripts/render-activity.mjs [output-dir]
-// Writes into the output directory:
-//   activity-dark.svg, activity-light.svg              four headline numbers
-//   activity-chart-dark.svg, activity-chart-light.svg  bar and line chart
+// Writes languages.svg and activity.svg into the output directory (default: dist).
 //
-// The chart reads its settings from scripts/activity-chart.json:
-//   bucket         "day" | "week" | "month"     size of each bar
-//   periods        number of bars to show (4-400)
-//   showBars       true | false
-//   line           "average" | "cumulative" | "none"
-//   averageWindow  bars per moving average (2-52), used when line is "average"
+// Activity numbers come from the public contribution calendar, the same green grid any
+// visitor sees on the profile. Language shares come from the code in public repositories
+// the account owns, forks excluded.
+//
+// scripts/profile.config.json controls both plates:
+//   chart.bucket          "day" | "week" | "month"     size of each bar
+//   chart.periods         number of bars (4-400)
+//   chart.showBars        true | false
+//   chart.line            "average" | "cumulative" | "none"
+//   chart.averageWindow   bars per moving average (2-52)
+//   languages.count       how many languages to list (2-8)
+//   languages.exclude     language names left out of the shares
+//   languages.tools       frameworks and tools listed under the languages
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { COLORS, MARGIN, WIDTH, drawFrame, drawLabel, drawText, measure, round, svgDocument } from "./lib/plate.mjs";
 
 const LOGIN = process.env.PROFILE_LOGIN || "yuhanwang14";
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
 const OUTPUT_DIR = process.argv[2] || "dist";
-const CHART_CONFIG_URL = new URL("./activity-chart.json", import.meta.url);
-
-const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif';
+const CONFIG_URL = new URL("./profile.config.json", import.meta.url);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// GitHub Primer colors, shared with the headline and the link buttons.
-const THEMES = {
-  dark: {
-    value: "#e6edf3", label: "#c9d1d9", detail: "#8b949e", rule: "#30363d", grid: "#21262d",
-    accent: "#58a6ff", bar: "#1f6feb", barOpacity: 0.55,
-  },
-  light: {
-    value: "#1f2328", label: "#424a53", detail: "#59636e", rule: "#d0d7de", grid: "#eaeef2",
-    accent: "#0969da", bar: "#0969da", barOpacity: 0.34,
-  },
+const DEFAULTS = {
+  chart: { bucket: "week", periods: 52, showBars: true, line: "average", averageWindow: 4 },
+  languages: { count: 8, exclude: [], tools: [] },
 };
-
-const CHART_DEFAULTS = { bucket: "week", periods: 52, showBars: true, line: "average", averageWindow: 4 };
 
 // ---------------------------------------------------------------- data
 
@@ -49,11 +40,7 @@ async function graphql(query, variables) {
     try {
       const response = await fetch("https://api.github.com/graphql", {
         method: "POST",
-        headers: {
-          Authorization: "bearer " + TOKEN,
-          "Content-Type": "application/json",
-          "User-Agent": LOGIN + "-profile-activity",
-        },
+        headers: { Authorization: "bearer " + TOKEN, "Content-Type": "application/json", "User-Agent": LOGIN + "-profile" },
         body: JSON.stringify({ query, variables }),
       });
       const payload = await response.json();
@@ -69,12 +56,10 @@ async function graphql(query, variables) {
   throw lastError;
 }
 
-// The API returns at most one year per contributionsCollection, so the query
-// asks for one aliased collection per calendar year since the account was created.
+// One aliased contributionsCollection per calendar year, since the API caps each at a year.
 async function fetchContributionDays() {
   const { user } = await graphql("query($login: String!) { user(login: $login) { createdAt } }", { login: LOGIN });
   if (!user) throw new Error("GitHub user not found: " + LOGIN);
-
   const now = new Date();
   const firstYear = new Date(user.createdAt).getUTCFullYear();
   const lastYear = now.getUTCFullYear();
@@ -82,43 +67,59 @@ async function fetchContributionDays() {
   for (let year = firstYear; year <= lastYear; year += 1) {
     const from = year === firstYear ? user.createdAt : year + "-01-01T00:00:00Z";
     const to = year === lastYear ? now.toISOString() : year + "-12-31T23:59:59Z";
-    fields.push(
-      "y" + year + ': contributionsCollection(from: "' + from + '", to: "' + to + '") ' +
-        "{ contributionCalendar { weeks { contributionDays { date contributionCount } } } }",
-    );
+    fields.push("y" + year + ': contributionsCollection(from: "' + from + '", to: "' + to + '") { contributionCalendar { weeks { contributionDays { date contributionCount } } } }');
   }
-
   const data = await graphql("query($login: String!) { user(login: $login) { " + fields.join(" ") + " } }", { login: LOGIN });
-  const countsByDate = new Map();
+  const counts = new Map();
   for (const collection of Object.values(data.user)) {
     for (const week of collection.contributionCalendar.weeks) {
-      for (const day of week.contributionDays) countsByDate.set(day.date, day.contributionCount);
+      for (const day of week.contributionDays) counts.set(day.date, day.contributionCount);
     }
   }
-
-  return [...countsByDate.entries()]
-    .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  return [...counts.entries()].map(([date, count]) => ({ date, count })).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
-async function loadChartConfig() {
+async function fetchLanguageSizes() {
+  const query =
+    "query($login: String!, $cursor: String) { user(login: $login) { repositories(first: 100, after: $cursor, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC) { " +
+    "pageInfo { hasNextPage endCursor } nodes { languages(first: 25, orderBy: { field: SIZE, direction: DESC }) { edges { size node { name } } } } } } }";
+  const sizes = new Map();
+  let cursor = null;
+  do {
+    const data = await graphql(query, { login: LOGIN, cursor });
+    const page = data.user.repositories;
+    for (const repository of page.nodes) {
+      for (const edge of repository.languages.edges) sizes.set(edge.node.name, (sizes.get(edge.node.name) || 0) + edge.size);
+    }
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (cursor);
+  return sizes;
+}
+
+async function loadConfig() {
   let overrides = {};
   try {
-    overrides = JSON.parse(await readFile(CHART_CONFIG_URL, "utf8"));
+    overrides = JSON.parse(await readFile(CONFIG_URL, "utf8"));
   } catch (error) {
-    if (error.code !== "ENOENT") throw new Error("Could not read scripts/activity-chart.json: " + error.message);
+    if (error.code !== "ENOENT") throw new Error("Could not read scripts/profile.config.json: " + error.message);
   }
-  const config = Object.assign({}, CHART_DEFAULTS, overrides);
-  if (!["day", "week", "month"].includes(config.bucket)) throw new Error('bucket must be "day", "week", or "month".');
-  if (!["average", "cumulative", "none"].includes(config.line)) throw new Error('line must be "average", "cumulative", or "none".');
-  if (!config.showBars && config.line === "none") throw new Error("Turn on showBars or choose a line.");
-  config.periods = Math.min(Math.max(Math.round(Number(config.periods) || CHART_DEFAULTS.periods), 4), 400);
-  config.averageWindow = Math.min(Math.max(Math.round(Number(config.averageWindow) || CHART_DEFAULTS.averageWindow), 2), 52);
-  config.showBars = config.showBars !== false;
-  return config;
+  const chart = Object.assign({}, DEFAULTS.chart, overrides.chart);
+  const languages = Object.assign({}, DEFAULTS.languages, overrides.languages);
+  if (!["day", "week", "month"].includes(chart.bucket)) throw new Error('chart.bucket must be "day", "week", or "month".');
+  if (!["average", "cumulative", "none"].includes(chart.line)) throw new Error('chart.line must be "average", "cumulative", or "none".');
+  chart.showBars = chart.showBars !== false;
+  if (!chart.showBars && chart.line === "none") throw new Error("Turn on chart.showBars or choose a chart.line.");
+  chart.periods = clamp(chart.periods, 4, 400, DEFAULTS.chart.periods);
+  chart.averageWindow = clamp(chart.averageWindow, 2, 52, DEFAULTS.chart.averageWindow);
+  languages.count = clamp(languages.count, 2, 8, DEFAULTS.languages.count);
+  return { chart, languages };
 }
 
-// ---------------------------------------------------------------- shared helpers
+function clamp(value, min, max, fallback) {
+  return Math.min(Math.max(Math.round(Number(value) || fallback), min), max);
+}
+
+// ---------------------------------------------------------------- formatting
 
 function formatNumber(value) {
   return new Intl.NumberFormat("en-US").format(Math.round(value));
@@ -141,29 +142,53 @@ function formatRange(start, end, currentYear) {
   return formatDate(start, true) + " – " + formatDate(end, true);
 }
 
-function escapeXml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+// ---------------------------------------------------------------- languages plate
+
+function rankLanguages(sizes, config) {
+  const excluded = new Set(config.exclude);
+  const kept = [...sizes.entries()].filter(([name]) => !excluded.has(name)).sort((a, b) => b[1] - a[1]);
+  const total = kept.reduce((sum, [, size]) => sum + size, 0);
+  return kept.slice(0, config.count).map(([name, size]) => ({ name, share: total ? size / total : 0 }));
 }
 
-function attrs(values) {
-  return Object.entries(values)
-    .map(([name, value]) => name + '="' + escapeXml(value) + '"')
-    .join(" ");
+function renderLanguages(languages, config) {
+  const columns = 2;
+  const columnWidth = 340;
+  const columnGap = WIDTH - 2 * MARGIN - columns * columnWidth;
+  const rows = Math.ceil(languages.length / columns);
+  const rowHeight = 52;
+  const firstBaseline = 84;
+  const toolsBaseline = firstBaseline + rows * rowHeight + 22;
+  const height = toolsBaseline + (config.tools.length ? 48 : 10);
+
+  const body = drawFrame(WIDTH, height, { topLeft: "Languages", topRight: "Share of code in public repositories" });
+  languages.forEach((language, index) => {
+    const column = Math.floor(index / rows);
+    const row = index % rows;
+    const x = MARGIN + column * (columnWidth + columnGap);
+    const y = firstBaseline + row * rowHeight;
+    const percent = language.share >= 0.095 ? Math.round(language.share * 100) + "%" : (language.share * 100).toFixed(1) + "%";
+    body.push(
+      "  " + drawText(language.name, { x, y, size: 20 }),
+      "  " + drawText(percent, { x: x + columnWidth, y, font: "mono", size: 11, opacity: 0.7, anchor: "end" }),
+      '  <rect x="' + x + '" y="' + (y + 12) + '" width="' + columnWidth + '" height="2" fill="' + COLORS.ink + '" fill-opacity="0.1" />',
+      '  <rect x="' + x + '" y="' + (y + 12) + '" width="' + round(Math.max(2, columnWidth * language.share)) + '" height="2" fill="' + COLORS.ink + '" fill-opacity="0.85" />',
+    );
+  });
+  if (config.tools.length) {
+    body.push(
+      '  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="' + (toolsBaseline - 28.5) + '" y2="' + (toolsBaseline - 28.5) + '" stroke="' + COLORS.hairline + '" />',
+      "  " + drawLabel("Tools", { x: MARGIN, y: toolsBaseline - 1 }),
+      "  " + drawText(config.tools.join("  ·  "), { x: MARGIN + 90, y: toolsBaseline, size: 18, opacity: 0.78 }),
+    );
+  }
+
+  const description = languages.map((language) => language.name + " " + Math.round(language.share * 100) + "%").join(", ") +
+    (config.tools.length ? ". Tools: " + config.tools.join(", ") + "." : ".");
+  return svgDocument({ width: WIDTH, height, title: "Languages across public repositories", description, body });
 }
 
-function svgOpen(width, height, titleId, title, description) {
-  return [
-    "<svg " + attrs({ xmlns: "http://www.w3.org/2000/svg", width, height, viewBox: "0 0 " + width + " " + height, role: "img", "aria-labelledby": titleId + "-title " + titleId + "-desc" }) + ">",
-    '  <title id="' + titleId + '-title">' + escapeXml(title) + "</title>",
-    '  <desc id="' + titleId + '-desc">' + escapeXml(description) + "</desc>",
-  ];
-}
-
-// ---------------------------------------------------------------- summary card
+// ---------------------------------------------------------------- activity plate
 
 function summarize(days) {
   const recent = days.slice(-365);
@@ -176,9 +201,7 @@ function summarize(days) {
   let start = end;
   while (start >= 0 && days[start].count > 0) start -= 1;
   const currentLength = Math.max(end - start, 0);
-  const current = currentLength > 0
-    ? { length: currentLength, start: days[start + 1].date, end: days[end].date }
-    : { length: 0 };
+  const current = currentLength > 0 ? { length: currentLength, start: days[start + 1].date, end: days[end].date } : { length: 0 };
 
   let longest = { length: 0 };
   let runStart = -1;
@@ -195,74 +218,27 @@ function summarize(days) {
   return { contributions, activeDays, windowDays: recent.length, current, longest, today: days[days.length - 1].date };
 }
 
-function dayUnit(length) {
-  return length === 1 ? "day" : "days";
-}
-
-function buildColumns(summary) {
-  const currentYear = Number(summary.today.slice(0, 4));
-  const activeShare = Math.round((100 * summary.activeDays) / summary.windowDays);
+function statColumns(summary) {
+  const year = Number(summary.today.slice(0, 4));
+  const unit = (length) => (length === 1 ? "day" : "days");
   return [
-    { value: formatNumber(summary.contributions), label: "Contributions", detail: "Last 365 days" },
-    { value: formatNumber(summary.activeDays), label: "Active days", detail: activeShare + "% of the year" },
+    { label: "Contributions", value: formatNumber(summary.contributions), detail: "Last 365 days" },
+    { label: "Active days", value: formatNumber(summary.activeDays), detail: Math.round((100 * summary.activeDays) / summary.windowDays) + "% of the year" },
     {
-      value: formatNumber(summary.current.length),
-      unit: dayUnit(summary.current.length),
       label: "Current streak",
-      detail: summary.current.length ? formatRange(summary.current.start, summary.current.end, currentYear) : "No active streak",
-      accent: summary.current.length > 0,
+      value: formatNumber(summary.current.length),
+      unit: unit(summary.current.length),
+      detail: summary.current.length ? formatRange(summary.current.start, summary.current.end, year) : "No active streak",
+      live: summary.current.length > 0,
     },
     {
-      value: formatNumber(summary.longest.length),
-      unit: dayUnit(summary.longest.length),
       label: "Longest streak",
-      detail: summary.longest.length ? formatRange(summary.longest.start, summary.longest.end, currentYear) : "No streak yet",
+      value: formatNumber(summary.longest.length),
+      unit: unit(summary.longest.length),
+      detail: summary.longest.length ? formatRange(summary.longest.start, summary.longest.end, year) : "No streak yet",
     },
   ];
 }
-
-function renderCard(columns, theme) {
-  const colors = THEMES[theme];
-  const width = 800;
-  const height = 128;
-  const columnWidth = width / columns.length;
-  const description = columns
-    .map((column) => column.label + ": " + column.value + (column.unit ? " " + column.unit : "") + " (" + column.detail + ")")
-    .join("; ");
-
-  const lines = svgOpen(width, height, "activity", "GitHub activity for " + LOGIN, description).concat([
-    "  <style>",
-    "    text { font-family: " + FONT_STACK + "; text-anchor: middle; }",
-    "    .value { fill: " + colors.value + "; font-size: 32px; font-weight: 600; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }",
-    "    .accent { fill: " + colors.accent + "; }",
-    "    .label { fill: " + colors.label + "; font-size: 14px; font-weight: 500; }",
-    "    .detail { fill: " + colors.detail + "; font-size: 13px; font-weight: 400; }",
-    "    .rule { stroke: " + colors.rule + "; stroke-width: 1; }",
-    "  </style>",
-  ]);
-
-  for (let index = 1; index < columns.length; index += 1) {
-    const x = index * columnWidth;
-    lines.push('  <line class="rule" x1="' + x + '" y1="22" x2="' + x + '" y2="106" />');
-  }
-
-  columns.forEach((column, index) => {
-    const x = index * columnWidth + columnWidth / 2;
-    // Presentation attributes keep the unit styled even in renderers that skip CSS on tspans.
-    const unit = column.unit
-      ? '<tspan dx="5" fill="' + colors.detail + '" font-size="16" font-weight="500" letter-spacing="0">' + escapeXml(column.unit) + "</tspan>"
-      : "";
-    const valueClass = column.accent ? "value accent" : "value";
-    lines.push('  <text class="' + valueClass + '" x="' + x + '" y="52">' + escapeXml(column.value) + unit + "</text>");
-    lines.push('  <text class="label" x="' + x + '" y="80">' + escapeXml(column.label) + "</text>");
-    lines.push('  <text class="detail" x="' + x + '" y="100">' + escapeXml(column.detail) + "</text>");
-  });
-
-  lines.push("</svg>", "");
-  return lines.join("\n");
-}
-
-// ---------------------------------------------------------------- chart
 
 function bucketStart(isoDate, bucket) {
   if (bucket === "day") return isoDate;
@@ -272,30 +248,24 @@ function bucketStart(isoDate, bucket) {
   return date.toISOString().slice(0, 10);
 }
 
-function buildSeries(days, config) {
+function buildSeries(days, chart) {
   const totals = new Map();
   for (const day of days) {
-    const start = bucketStart(day.date, config.bucket);
+    const start = bucketStart(day.date, chart.bucket);
     totals.set(start, (totals.get(start) || 0) + day.count);
   }
   const buckets = [...totals.entries()].map(([start, total]) => ({ start, total }));
-
   // Averages look back past the visible window, so the first bars get a full window too.
-  const averages = buckets.map((bucket, index) => {
-    const window = buckets.slice(Math.max(0, index - config.averageWindow + 1), index + 1);
+  const averages = buckets.map((_, index) => {
+    const window = buckets.slice(Math.max(0, index - chart.averageWindow + 1), index + 1);
     return window.reduce((sum, item) => sum + item.total, 0) / window.length;
   });
-
-  const visible = buckets.slice(-config.periods).map((bucket, offset, list) => {
-    const index = buckets.length - list.length + offset;
-    return { start: bucket.start, total: bucket.total, average: averages[index] };
-  });
+  const offset = Math.max(0, buckets.length - chart.periods);
   let running = 0;
-  for (const bucket of visible) {
+  return buckets.slice(offset).map((bucket, index) => {
     running += bucket.total;
-    bucket.cumulative = running;
-  }
-  return visible;
+    return { start: bucket.start, total: bucket.total, average: averages[offset + index], cumulative: running };
+  });
 }
 
 function niceScale(maxValue, targetTicks) {
@@ -306,132 +276,101 @@ function niceScale(maxValue, targetTicks) {
   return { max: Math.ceil(maxValue / step) * step, step };
 }
 
-function bucketNoun(bucket) {
-  return { day: "Daily", week: "Weekly", month: "Monthly" }[bucket];
-}
+function renderActivity(summary, series, chart) {
+  const height = 486;
+  const columns = statColumns(summary);
+  const columnWidth = (WIDTH - 2 * MARGIN) / columns.length;
+  const asOf = formatDate(summary.today, true);
+  const body = drawFrame(WIDTH, height, { topLeft: "Activity", topRight: "As of " + asOf });
 
-function bucketUnit(bucket) {
-  return { day: "day", week: "week", month: "month" }[bucket];
-}
-
-function axisLabels(series, bucket, xFor) {
-  const labels = [];
-  const minGap = 44;
-  series.forEach((item, index) => {
-    const month = Number(item.start.slice(5, 7));
-    const previous = index > 0 ? Number(series[index - 1].start.slice(5, 7)) : null;
-    const monthStarts = bucket === "month" || (previous !== null && previous !== month);
-    if (!monthStarts) return;
-    const x = xFor(index);
-    if (labels.length && x - labels[labels.length - 1].x < minGap) return;
-    labels.push({ x, text: month === 1 ? item.start.slice(0, 4) : MONTHS[month - 1] });
+  columns.forEach((column, index) => {
+    const x = MARGIN + index * columnWidth;
+    body.push("  " + drawLabel(column.label, { x, y: 78 }));
+    body.push("  " + drawText(column.value, { x, y: 126, size: 44 }));
+    let cursor = x + measure(column.value, "display", 44).width;
+    if (column.unit) {
+      body.push("  " + drawText(column.unit, { x: cursor + 6, y: 126, size: 18, opacity: 0.55 }));
+      cursor += 6 + measure(column.unit, "display", 18).width;
+    }
+    if (column.live) body.push('  <circle cx="' + round(cursor + 10) + '" cy="119" r="3.5" fill="' + COLORS.accent + '" />');
+    body.push("  " + drawLabel(column.detail, { x, y: 152 }));
   });
-  return labels;
-}
+  body.push('  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="184.5" y2="184.5" stroke="' + COLORS.hairline + '" />');
 
-function linePath(points) {
-  return points.map((point, index) => (index === 0 ? "M" : "L") + point.x.toFixed(1) + " " + point.y.toFixed(1)).join(" ");
-}
-
-function renderChart(series, config, theme) {
-  const colors = THEMES[theme];
-  const width = 800;
-  const height = 240;
-  const secondaryAxis = config.showBars && config.line === "cumulative";
-  const plot = { left: 44, right: width - (secondaryAxis ? 52 : 12), top: 46, bottom: height - 30 };
-  const plotWidth = plot.right - plot.left;
-  const plotHeight = plot.bottom - plot.top;
-  const slot = plotWidth / series.length;
+  // Chart.
+  const secondaryAxis = chart.showBars && chart.line === "cumulative";
+  const plot = { left: MARGIN + 40, right: WIDTH - MARGIN - (secondaryAxis ? 40 : 0), top: 250, bottom: 418 };
+  const slot = (plot.right - plot.left) / series.length;
   const xFor = (index) => plot.left + slot * (index + 0.5);
-
-  const lineValues = config.line === "none" ? [] : series.map((item) => (config.line === "average" ? item.average : item.cumulative));
-  const barValues = config.showBars ? series.map((item) => item.total) : [];
-  const primaryValues = secondaryAxis ? barValues : barValues.concat(lineValues);
-  const primary = niceScale(Math.max(1, ...primaryValues), 4);
+  const lineValues = chart.line === "none" ? [] : series.map((item) => (chart.line === "average" ? item.average : item.cumulative));
+  const barValues = chart.showBars ? series.map((item) => item.total) : [];
+  const primary = niceScale(Math.max(1, ...(secondaryAxis ? barValues : barValues.concat(lineValues))), 4);
   const secondary = secondaryAxis ? niceScale(Math.max(1, ...lineValues), 4) : primary;
-  const yFor = (value, scale) => plot.bottom - (value / scale.max) * plotHeight;
+  const yFor = (value, scale) => plot.bottom - (value / scale.max) * (plot.bottom - plot.top);
+  const unitName = { day: "day", week: "week", month: "month" }[chart.bucket];
+  const barName = { day: "Daily", week: "Weekly", month: "Monthly" }[chart.bucket] + " contributions";
+  const lineName = chart.line === "average" ? chart.averageWindow + "-" + unitName + " average" : "Cumulative" + (secondaryAxis ? " (right axis)" : "");
 
-  const noun = bucketNoun(config.bucket);
-  const lineLabel = config.line === "average" ? config.averageWindow + "-" + bucketUnit(config.bucket) + " average" : "Cumulative";
-  const total = series.reduce((sum, item) => sum + item.total, 0);
-  const peakIndex = series.reduce((best, item, index) => (item.total > series[best].total ? index : best), 0);
-  const peak = series[peakIndex];
-  const description =
-    noun + " contributions for the last " + series.length + " " + bucketUnit(config.bucket) + "s: " + formatNumber(total) +
-    " in total, peak of " + formatNumber(peak.total) + " starting " + formatDate(peak.start, true) + ".";
+  let legendX = MARGIN;
+  if (chart.showBars) {
+    body.push('  <rect x="' + legendX + '" y="209" width="9" height="9" fill="' + COLORS.ink + '" fill-opacity="0.3" />');
+    body.push("  " + drawLabel(barName, { x: legendX + 17, y: 217 }));
+    legendX += 17 + measure(barName.toUpperCase(), "mono", 10, 1.5).width + 28;
+  }
+  if (chart.line !== "none") {
+    body.push('  <line x1="' + legendX + '" x2="' + (legendX + 14) + '" y1="213.5" y2="213.5" stroke="' + COLORS.accent + '" stroke-width="1.75" />');
+    body.push("  " + drawLabel(lineName, { x: legendX + 22, y: 217 }));
+  }
 
-  const out = svgOpen(width, height, "activity-chart", noun + " contributions for " + LOGIN, description).concat([
-    "  <style>",
-    "    text { font-family: " + FONT_STACK + "; }",
-    "    .axis { fill: " + colors.detail + "; font-size: 11px; font-variant-numeric: tabular-nums; }",
-    "    .legend { fill: " + colors.label + "; font-size: 12px; font-weight: 500; }",
-    "    .peak { fill: " + colors.detail + "; font-size: 11px; font-weight: 500; text-anchor: middle; }",
-    "  </style>",
-  ]);
-
-  // Gridlines and axis labels.
   for (let value = 0; value <= primary.max + 1e-9; value += primary.step) {
-    const y = yFor(value, primary);
-    out.push('  <line x1="' + plot.left + '" x2="' + plot.right + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + (value === 0 ? colors.rule : colors.grid) + '" stroke-width="1" />');
-    out.push('  <text class="axis" x="' + (plot.left - 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end">' + formatCompact(value) + "</text>");
+    const y = round(yFor(value, primary)) + 0.5;
+    body.push('  <line x1="' + plot.left + '" x2="' + plot.right + '" y1="' + y + '" y2="' + y + '" stroke="' + (value === 0 ? COLORS.muted : COLORS.hairline) + '"' + (value === 0 ? ' stroke-opacity="0.45"' : "") + " />");
+    body.push("  " + drawLabel(formatCompact(value), { x: plot.left - 12, y: y + 3.5, anchor: "end", tracking: 0.5 }));
   }
   if (secondaryAxis) {
     for (let value = 0; value <= secondary.max + 1e-9; value += secondary.step) {
-      const y = yFor(value, secondary);
-      out.push('  <text class="axis" x="' + (plot.right + 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="start">' + formatCompact(value) + "</text>");
+      body.push("  " + drawLabel(formatCompact(value), { x: plot.right + 12, y: yFor(value, secondary) + 4, tracking: 0.5 }));
     }
   }
-  for (const label of axisLabels(series, config.bucket, xFor)) {
-    out.push('  <text class="axis" x="' + label.x.toFixed(1) + '" y="' + (plot.bottom + 18) + '" text-anchor="middle">' + label.text + "</text>");
-  }
 
-  // Bars.
-  if (config.showBars) {
-    const barWidth = Math.max(1, Math.min(slot * 0.64, 28));
-    out.push('  <g fill="' + colors.bar + '" fill-opacity="' + colors.barOpacity + '">');
+  let lastLabelX = -Infinity;
+  series.forEach((item, index) => {
+    const month = Number(item.start.slice(5, 7));
+    const previous = index > 0 ? Number(series[index - 1].start.slice(5, 7)) : null;
+    if (!(chart.bucket === "month" || (previous !== null && previous !== month))) return;
+    const x = xFor(index);
+    if (x - lastLabelX < 44) return;
+    lastLabelX = x;
+    body.push("  " + drawLabel(month === 1 ? item.start.slice(0, 4) : MONTHS[month - 1], { x, y: plot.bottom + 22, anchor: "middle" }));
+  });
+
+  const peakIndex = series.reduce((best, item, index) => (item.total > series[best].total ? index : best), 0);
+  if (chart.showBars) {
+    const barWidth = Math.max(1, Math.min(slot * 0.62, 26));
+    body.push('  <g fill="' + COLORS.ink + '" fill-opacity="0.26">');
     series.forEach((item, index) => {
       if (item.total <= 0) return;
       const top = Math.min(yFor(item.total, primary), plot.bottom - 1);
-      const radius = Math.min(2, barWidth / 3);
-      out.push(
-        '    <rect x="' + (xFor(index) - barWidth / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + barWidth.toFixed(1) +
-          '" height="' + (plot.bottom - top).toFixed(1) + '" rx="' + radius.toFixed(1) + '" />',
-      );
+      body.push('    <rect x="' + round(xFor(index) - barWidth / 2) + '" y="' + round(top) + '" width="' + round(barWidth) + '" height="' + round(plot.bottom - top) + '" />');
     });
-    out.push("  </g>");
-
-    const peakTop = yFor(peak.total, primary);
-    const peakX = Math.min(Math.max(xFor(peakIndex), plot.left + 40), plot.right - 40);
-    out.push('  <text class="peak" x="' + peakX.toFixed(1) + '" y="' + Math.max(peakTop - 7, plot.top - 4).toFixed(1) + '">Peak ' + formatNumber(peak.total) + "</text>");
+    body.push("  </g>");
+    const peak = series[peakIndex];
+    const peakX = Math.min(Math.max(xFor(peakIndex), plot.left + 44), plot.right - 44);
+    body.push("  " + drawLabel("Peak " + formatNumber(peak.total), { x: peakX, y: Math.max(yFor(peak.total, primary) - 9, plot.top - 6), anchor: "middle", opacity: 0.6 }));
   }
-
-  // Line.
-  if (config.line !== "none") {
+  if (chart.line !== "none") {
     const scale = secondaryAxis ? secondary : primary;
-    const points = lineValues.map((value, index) => ({ x: xFor(index), y: yFor(value, scale) }));
-    const last = points[points.length - 1];
-    out.push(
-      '  <path d="' + linePath(points) + '" fill="none" stroke="' + colors.accent + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />',
-      '  <circle cx="' + last.x.toFixed(1) + '" cy="' + last.y.toFixed(1) + '" r="3.5" fill="' + colors.accent + '" />',
-    );
+    const points = lineValues.map((value, index) => round(xFor(index)) + " " + round(yFor(value, scale)));
+    const last = points[points.length - 1].split(" ");
+    body.push('  <path d="M' + points.join(" L") + '" fill="none" stroke="' + COLORS.accent + '" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round" />');
+    body.push('  <circle cx="' + last[0] + '" cy="' + last[1] + '" r="3" fill="' + COLORS.accent + '" />');
   }
 
-  // Legend.
-  let legendX = plot.left;
-  const legendY = 20;
-  if (config.showBars) {
-    const label = noun + " contributions";
-    out.push('  <rect x="' + legendX + '" y="' + (legendY - 9) + '" width="10" height="10" rx="2" fill="' + colors.bar + '" fill-opacity="' + colors.barOpacity + '" />');
-    out.push('  <text class="legend" x="' + (legendX + 16) + '" y="' + legendY + '">' + label + "</text>");
-    legendX += 16 + Math.round(label.length * 6.9) + 20;
-  }
-  if (config.line !== "none") {
-    out.push('  <line x1="' + legendX + '" x2="' + (legendX + 16) + '" y1="' + (legendY - 4) + '" y2="' + (legendY - 4) + '" stroke="' + colors.accent + '" stroke-width="2" stroke-linecap="round" />');
-    out.push('  <text class="legend" x="' + (legendX + 22) + '" y="' + legendY + '">' + lineLabel + (secondaryAxis ? " (right axis)" : "") + "</text>");
-  }
-
-  out.push("</svg>", "");
-  return out.join("\n");
+  const total = series.reduce((sum, item) => sum + item.total, 0);
+  const description =
+    columns.map((column) => column.label + ": " + column.value + (column.unit ? " " + column.unit : "") + " (" + column.detail + ")").join("; ") +
+    ". " + barName + " for the last " + series.length + " " + unitName + "s: " + formatNumber(total) + " in total, peak " + formatNumber(series[peakIndex].total) + ".";
+  return svgDocument({ width: WIDTH, height, title: "GitHub activity for " + LOGIN + " as of " + asOf, description, body });
 }
 
 // ---------------------------------------------------------------- main
@@ -441,23 +380,19 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-const chartConfig = await loadChartConfig();
-const days = await fetchContributionDays();
+const config = await loadConfig();
+const [days, languageSizes] = await Promise.all([fetchContributionDays(), fetchLanguageSizes()]);
 if (days.length === 0) throw new Error("The contribution calendar came back empty.");
 
-const columns = buildColumns(summarize(days));
-const series = buildSeries(days, chartConfig);
+const summary = summarize(days);
+const languages = rankLanguages(languageSizes, config.languages);
 const files = {
-  "activity-dark.svg": renderCard(columns, "dark"),
-  "activity-light.svg": renderCard(columns, "light"),
-  "activity-chart-dark.svg": renderChart(series, chartConfig, "dark"),
-  "activity-chart-light.svg": renderChart(series, chartConfig, "light"),
+  "languages.svg": renderLanguages(languages, config.languages),
+  "activity.svg": renderActivity(summary, buildSeries(days, config.chart), config.chart),
 };
 
 await mkdir(OUTPUT_DIR, { recursive: true });
-for (const [name, svg] of Object.entries(files)) {
-  await writeFile(join(OUTPUT_DIR, name), svg, "utf8");
-}
+for (const [name, svg] of Object.entries(files)) await writeFile(join(OUTPUT_DIR, name), svg, "utf8");
 
-console.log(columns.map((column) => column.label + ": " + column.value + (column.unit ? " " + column.unit : "") + " (" + column.detail + ")").join("\n"));
-console.log("Chart: " + JSON.stringify(chartConfig));
+console.log(statColumns(summary).map((column) => column.label + ": " + column.value + (column.unit ? " " + column.unit : "") + " (" + column.detail + ")").join("\n"));
+console.log("Languages: " + languages.map((language) => language.name + " " + (language.share * 100).toFixed(1) + "%").join(", "));

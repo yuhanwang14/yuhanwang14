@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Render activity card and chart
+      - name: Render languages and activity plates
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          assets=(activity-dark.svg activity-light.svg activity-chart-dark.svg activity-chart-light.svg)
+          assets=(languages.svg activity.svg)
 
           if ! node scripts/render-activity.mjs dist; then
             echo "::warning title=Activity refresh failed::Keeping the last-known-good SVGs."
