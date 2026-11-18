@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Check out profile source
         uses: actions/checkout@v4
@@ -36,25 +36,29 @@ jobs:
         with:
           node-version: 22
 
-      - name: Render languages and activity plates
+      # Activity uses the public contribution calendar. Languages need PROFILE_STATS_TOKEN,
+      # a token that can read private and organization repositories; without it the
+      # previous languages plate is kept.
+      - name: Render activity and languages plates
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROFILE_STATS_TOKEN: ${{ secrets.PROFILE_STATS_TOKEN }}
           PROFILE_LOGIN: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
 
-          assets=(languages.svg activity.svg)
+          assets=(activity-dark.svg activity-light.svg languages-dark.svg languages-light.svg)
+          mkdir -p dist
 
           if ! node scripts/render-activity.mjs dist; then
-            echo "::warning title=Activity refresh failed::Keeping the last-known-good SVGs."
-            mkdir -p dist
-            for asset in "${assets[@]}"; do
-              cp -f "previous-output/$asset" dist/ 2>/dev/null || true
-            done
+            echo "::warning title=Profile refresh failed::Keeping the last-known-good SVGs."
           fi
 
           for asset in "${assets[@]}"; do
+            if [ ! -s "dist/$asset" ]; then
+              cp -f "previous-output/$asset" dist/ 2>/dev/null || true
+            fi
             if [ ! -s "dist/$asset" ]; then
               echo "::error title=Missing profile asset::$asset has no current or last-known-good version."
               exit 1

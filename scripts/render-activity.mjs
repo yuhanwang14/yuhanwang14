@@ -1,35 +1,40 @@
-// Renders the data plates of the profile README from live GitHub data.
+// Renders the data plates of the profile README, once per GitHub theme.
 //
-// Usage: GITHUB_TOKEN=<token> node scripts/render-activity.mjs [output-dir]
-// Writes languages.svg and activity.svg into the output directory (default: dist).
+// Usage: GITHUB_TOKEN=<token> [PROFILE_STATS_TOKEN=<token>] node scripts/render-activity.mjs [output-dir]
+// Writes activity-{dark,light}.svg, and languages-{dark,light}.svg when PROFILE_STATS_TOKEN is set.
 //
 // Activity numbers come from the public contribution calendar, the same green grid any
-// visitor sees on the profile. Language shares come from the code in public repositories
-// the account owns, forks excluded.
+// visitor sees on the profile, so GITHUB_TOKEN is enough for them.
+// Language shares count the lines the account has written itself, across every repository
+// PROFILE_STATS_TOKEN can read, private and organization repositories included
+// (see lib/authored-languages.mjs). Without that token the languages plate is left as it was.
 //
 // scripts/profile.config.json controls both plates:
-//   chart.bucket          "day" | "week" | "month"     size of each bar
-//   chart.periods         number of bars (4-400)
-//   chart.showBars        true | false
-//   chart.line            "average" | "cumulative" | "none"
-//   chart.averageWindow   bars per moving average (2-52)
-//   languages.count       how many languages to list (2-8)
-//   languages.exclude     language names left out of the shares
-//   languages.tools       frameworks and tools listed under the languages
+//   chart.bucket            "day" | "week" | "month"     size of each bar
+//   chart.periods           number of bars (4-400)
+//   chart.showBars          true | false
+//   chart.line              "average" | "cumulative" | "none"
+//   chart.averageWindow     bars per moving average (2-52)
+//   languages.count         how many languages to list (2-8)
+//   languages.importLimit   commits adding more lines than this count as bulk imports
+//   languages.exclude       language names left out of the shares
+//   languages.tools         frameworks and tools listed under the languages
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { COLORS, MARGIN, WIDTH, drawFrame, drawLabel, drawText, measure, round, svgDocument } from "./lib/plate.mjs";
+import { measureAuthoredLanguages } from "./lib/authored-languages.mjs";
+import { MARGIN, THEMES, WIDTH, drawFrame, drawLabel, drawText, measure, round, svgDocument } from "./lib/plate.mjs";
 
 const LOGIN = process.env.PROFILE_LOGIN || "yuhanwang14";
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
+const STATS_TOKEN = process.env.PROFILE_STATS_TOKEN;
 const OUTPUT_DIR = process.argv[2] || "dist";
 const CONFIG_URL = new URL("./profile.config.json", import.meta.url);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const DEFAULTS = {
   chart: { bucket: "week", periods: 52, showBars: true, line: "average", averageWindow: 4 },
-  languages: { count: 8, exclude: [], tools: [] },
+  languages: { count: 8, importLimit: 8000, exclude: [], tools: [] },
 };
 
 // ---------------------------------------------------------------- data
@@ -79,23 +84,6 @@ async function fetchContributionDays() {
   return [...counts.entries()].map(([date, count]) => ({ date, count })).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
-async function fetchLanguageSizes() {
-  const query =
-    "query($login: String!, $cursor: String) { user(login: $login) { repositories(first: 100, after: $cursor, ownerAffiliations: OWNER, isFork: false, privacy: PUBLIC) { " +
-    "pageInfo { hasNextPage endCursor } nodes { languages(first: 25, orderBy: { field: SIZE, direction: DESC }) { edges { size node { name } } } } } } }";
-  const sizes = new Map();
-  let cursor = null;
-  do {
-    const data = await graphql(query, { login: LOGIN, cursor });
-    const page = data.user.repositories;
-    for (const repository of page.nodes) {
-      for (const edge of repository.languages.edges) sizes.set(edge.node.name, (sizes.get(edge.node.name) || 0) + edge.size);
-    }
-    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
-  } while (cursor);
-  return sizes;
-}
-
 async function loadConfig() {
   let overrides = {};
   try {
@@ -112,6 +100,7 @@ async function loadConfig() {
   chart.periods = clamp(chart.periods, 4, 400, DEFAULTS.chart.periods);
   chart.averageWindow = clamp(chart.averageWindow, 2, 52, DEFAULTS.chart.averageWindow);
   languages.count = clamp(languages.count, 2, 8, DEFAULTS.languages.count);
+  languages.importLimit = clamp(languages.importLimit, 500, 1000000, DEFAULTS.languages.importLimit);
   return { chart, languages };
 }
 
@@ -129,6 +118,10 @@ function formatCompact(value) {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
+function formatPercent(share) {
+  return share >= 0.095 ? Math.round(share * 100) + "%" : (share * 100).toFixed(1) + "%";
+}
+
 function formatDate(isoDate, withYear) {
   const [year, month, day] = isoDate.split("-").map(Number);
   return MONTHS[month - 1] + " " + day + (withYear ? ", " + year : "");
@@ -144,14 +137,18 @@ function formatRange(start, end, currentYear) {
 
 // ---------------------------------------------------------------- languages plate
 
-function rankLanguages(sizes, config) {
+function rankLanguages(totals, config) {
   const excluded = new Set(config.exclude);
-  const kept = [...sizes.entries()].filter(([name]) => !excluded.has(name)).sort((a, b) => b[1] - a[1]);
-  const total = kept.reduce((sum, [, size]) => sum + size, 0);
-  return kept.slice(0, config.count).map(([name, size]) => ({ name, share: total ? size / total : 0 }));
+  const kept = [...totals.entries()].filter(([name]) => !excluded.has(name)).sort((a, b) => b[1] - a[1]);
+  const total = kept.reduce((sum, [, lines]) => sum + lines, 0);
+  return {
+    total,
+    languages: kept.slice(0, config.count).map(([name, lines]) => ({ name, lines, share: total ? lines / total : 0 })),
+  };
 }
 
-function renderLanguages(languages, config) {
+function renderLanguages(ranking, repositoryCount, config, theme) {
+  const { languages, total } = ranking;
   const columns = 2;
   const columnWidth = 340;
   const columnGap = WIDTH - 2 * MARGIN - columns * columnWidth;
@@ -160,32 +157,34 @@ function renderLanguages(languages, config) {
   const firstBaseline = 84;
   const toolsBaseline = firstBaseline + rows * rowHeight + 22;
   const height = toolsBaseline + (config.tools.length ? 48 : 10);
+  const summary = formatCompact(total) + " lines written · " + repositoryCount + " repositories";
 
-  const body = drawFrame(WIDTH, height, { topLeft: "Languages", topRight: "Share of code in public repositories" });
+  const body = drawFrame(WIDTH, height, theme, { topLeft: "Languages", topRight: summary });
   languages.forEach((language, index) => {
     const column = Math.floor(index / rows);
     const row = index % rows;
     const x = MARGIN + column * (columnWidth + columnGap);
     const y = firstBaseline + row * rowHeight;
-    const percent = language.share >= 0.095 ? Math.round(language.share * 100) + "%" : (language.share * 100).toFixed(1) + "%";
     body.push(
-      "  " + drawText(language.name, { x, y, size: 20 }),
-      "  " + drawText(percent, { x: x + columnWidth, y, font: "mono", size: 11, opacity: 0.7, anchor: "end" }),
-      '  <rect x="' + x + '" y="' + (y + 12) + '" width="' + columnWidth + '" height="2" fill="' + COLORS.ink + '" fill-opacity="0.1" />',
-      '  <rect x="' + x + '" y="' + (y + 12) + '" width="' + round(Math.max(2, columnWidth * language.share)) + '" height="2" fill="' + COLORS.ink + '" fill-opacity="0.85" />',
+      "  " + drawText(language.name, { x, y, size: 20, fill: theme.ink }),
+      "  " + drawText(formatPercent(language.share), { x: x + columnWidth, y, font: "mono", size: 11, fill: theme.text, anchor: "end" }),
+      "  " + drawLabel(formatCompact(language.lines), { theme, x: x + columnWidth - 52, y, anchor: "end", tracking: 0.5 }),
+      '  <rect x="' + x + '" y="' + (y + 12) + '" width="' + columnWidth + '" height="2" fill="' + theme.ink + '" fill-opacity="0.1" />',
+      '  <rect x="' + x + '" y="' + (y + 12) + '" width="' + round(Math.max(2, columnWidth * language.share)) + '" height="2" fill="' + theme.ink + '" fill-opacity="0.85" />',
     );
   });
   if (config.tools.length) {
     body.push(
-      '  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="' + (toolsBaseline - 28.5) + '" y2="' + (toolsBaseline - 28.5) + '" stroke="' + COLORS.hairline + '" />',
-      "  " + drawLabel("Tools", { x: MARGIN, y: toolsBaseline - 1 }),
-      "  " + drawText(config.tools.join("  ·  "), { x: MARGIN + 90, y: toolsBaseline, size: 18, opacity: 0.78 }),
+      '  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="' + (toolsBaseline - 28.5) + '" y2="' + (toolsBaseline - 28.5) + '" stroke="' + theme.rule + '" />',
+      "  " + drawLabel("Tools", { theme, x: MARGIN, y: toolsBaseline - 1 }),
+      "  " + drawText(config.tools.join("  ·  "), { x: MARGIN + 90, y: toolsBaseline, size: 18, fill: theme.text }),
     );
   }
 
-  const description = languages.map((language) => language.name + " " + Math.round(language.share * 100) + "%").join(", ") +
-    (config.tools.length ? ". Tools: " + config.tools.join(", ") + "." : ".");
-  return svgDocument({ width: WIDTH, height, title: "Languages across public repositories", description, body });
+  const description = "Lines of code written, by language: " +
+    languages.map((language) => language.name + " " + formatPercent(language.share) + " (" + formatNumber(language.lines) + " lines)").join(", ") +
+    ". " + formatNumber(total) + " lines across " + repositoryCount + " repositories." + (config.tools.length ? " Tools: " + config.tools.join(", ") + "." : "");
+  return svgDocument({ width: WIDTH, height, title: "Languages I have written", description, body });
 }
 
 // ---------------------------------------------------------------- activity plate
@@ -276,26 +275,26 @@ function niceScale(maxValue, targetTicks) {
   return { max: Math.ceil(maxValue / step) * step, step };
 }
 
-function renderActivity(summary, series, chart) {
+function renderActivity(summary, series, chart, theme) {
   const height = 486;
   const columns = statColumns(summary);
   const columnWidth = (WIDTH - 2 * MARGIN) / columns.length;
   const asOf = formatDate(summary.today, true);
-  const body = drawFrame(WIDTH, height, { topLeft: "Activity", topRight: "As of " + asOf });
+  const body = drawFrame(WIDTH, height, theme, { topLeft: "Activity", topRight: "As of " + asOf });
 
   columns.forEach((column, index) => {
     const x = MARGIN + index * columnWidth;
-    body.push("  " + drawLabel(column.label, { x, y: 78 }));
-    body.push("  " + drawText(column.value, { x, y: 126, size: 44 }));
+    body.push("  " + drawLabel(column.label, { theme, x, y: 78 }));
+    body.push("  " + drawText(column.value, { x, y: 126, size: 44, fill: theme.ink }));
     let cursor = x + measure(column.value, "display", 44).width;
     if (column.unit) {
-      body.push("  " + drawText(column.unit, { x: cursor + 6, y: 126, size: 18, opacity: 0.55 }));
+      body.push("  " + drawText(column.unit, { x: cursor + 6, y: 126, size: 18, fill: theme.muted }));
       cursor += 6 + measure(column.unit, "display", 18).width;
     }
-    if (column.live) body.push('  <circle cx="' + round(cursor + 10) + '" cy="119" r="3.5" fill="' + COLORS.accent + '" />');
-    body.push("  " + drawLabel(column.detail, { x, y: 152 }));
+    if (column.live) body.push('  <circle cx="' + round(cursor + 10) + '" cy="119" r="3.5" fill="' + theme.accent + '" />');
+    body.push("  " + drawLabel(column.detail, { theme, x, y: 152 }));
   });
-  body.push('  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="184.5" y2="184.5" stroke="' + COLORS.hairline + '" />');
+  body.push('  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="184.5" y2="184.5" stroke="' + theme.rule + '" />');
 
   // Chart.
   const secondaryAxis = chart.showBars && chart.line === "cumulative";
@@ -313,23 +312,23 @@ function renderActivity(summary, series, chart) {
 
   let legendX = MARGIN;
   if (chart.showBars) {
-    body.push('  <rect x="' + legendX + '" y="209" width="9" height="9" fill="' + COLORS.ink + '" fill-opacity="0.3" />');
-    body.push("  " + drawLabel(barName, { x: legendX + 17, y: 217 }));
+    body.push('  <rect x="' + legendX + '" y="209" width="9" height="9" fill="' + theme.ink + '" fill-opacity="0.3" />');
+    body.push("  " + drawLabel(barName, { theme, x: legendX + 17, y: 217 }));
     legendX += 17 + measure(barName.toUpperCase(), "mono", 10, 1.5).width + 28;
   }
   if (chart.line !== "none") {
-    body.push('  <line x1="' + legendX + '" x2="' + (legendX + 14) + '" y1="213.5" y2="213.5" stroke="' + COLORS.accent + '" stroke-width="1.75" />');
-    body.push("  " + drawLabel(lineName, { x: legendX + 22, y: 217 }));
+    body.push('  <line x1="' + legendX + '" x2="' + (legendX + 14) + '" y1="213.5" y2="213.5" stroke="' + theme.accent + '" stroke-width="1.75" />');
+    body.push("  " + drawLabel(lineName, { theme, x: legendX + 22, y: 217 }));
   }
 
   for (let value = 0; value <= primary.max + 1e-9; value += primary.step) {
     const y = round(yFor(value, primary)) + 0.5;
-    body.push('  <line x1="' + plot.left + '" x2="' + plot.right + '" y1="' + y + '" y2="' + y + '" stroke="' + (value === 0 ? COLORS.muted : COLORS.hairline) + '"' + (value === 0 ? ' stroke-opacity="0.45"' : "") + " />");
-    body.push("  " + drawLabel(formatCompact(value), { x: plot.left - 12, y: y + 3.5, anchor: "end", tracking: 0.5 }));
+    body.push('  <line x1="' + plot.left + '" x2="' + plot.right + '" y1="' + y + '" y2="' + y + '" stroke="' + (value === 0 ? theme.rule : theme.grid) + '" />');
+    body.push("  " + drawLabel(formatCompact(value), { theme, x: plot.left - 12, y: y + 3.5, anchor: "end", tracking: 0.5 }));
   }
   if (secondaryAxis) {
     for (let value = 0; value <= secondary.max + 1e-9; value += secondary.step) {
-      body.push("  " + drawLabel(formatCompact(value), { x: plot.right + 12, y: yFor(value, secondary) + 4, tracking: 0.5 }));
+      body.push("  " + drawLabel(formatCompact(value), { theme, x: plot.right + 12, y: yFor(value, secondary) + 4, tracking: 0.5 }));
     }
   }
 
@@ -341,13 +340,13 @@ function renderActivity(summary, series, chart) {
     const x = xFor(index);
     if (x - lastLabelX < 44) return;
     lastLabelX = x;
-    body.push("  " + drawLabel(month === 1 ? item.start.slice(0, 4) : MONTHS[month - 1], { x, y: plot.bottom + 22, anchor: "middle" }));
+    body.push("  " + drawLabel(month === 1 ? item.start.slice(0, 4) : MONTHS[month - 1], { theme, x, y: plot.bottom + 22, anchor: "middle" }));
   });
 
   const peakIndex = series.reduce((best, item, index) => (item.total > series[best].total ? index : best), 0);
   if (chart.showBars) {
     const barWidth = Math.max(1, Math.min(slot * 0.62, 26));
-    body.push('  <g fill="' + COLORS.ink + '" fill-opacity="0.26">');
+    body.push('  <g fill="' + theme.ink + '" fill-opacity="0.24">');
     series.forEach((item, index) => {
       if (item.total <= 0) return;
       const top = Math.min(yFor(item.total, primary), plot.bottom - 1);
@@ -356,14 +355,14 @@ function renderActivity(summary, series, chart) {
     body.push("  </g>");
     const peak = series[peakIndex];
     const peakX = Math.min(Math.max(xFor(peakIndex), plot.left + 44), plot.right - 44);
-    body.push("  " + drawLabel("Peak " + formatNumber(peak.total), { x: peakX, y: Math.max(yFor(peak.total, primary) - 9, plot.top - 6), anchor: "middle", opacity: 0.6 }));
+    body.push("  " + drawLabel("Peak " + formatNumber(peak.total), { theme, x: peakX, y: Math.max(yFor(peak.total, primary) - 9, plot.top - 6), anchor: "middle" }));
   }
   if (chart.line !== "none") {
     const scale = secondaryAxis ? secondary : primary;
     const points = lineValues.map((value, index) => round(xFor(index)) + " " + round(yFor(value, scale)));
     const last = points[points.length - 1].split(" ");
-    body.push('  <path d="M' + points.join(" L") + '" fill="none" stroke="' + COLORS.accent + '" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round" />');
-    body.push('  <circle cx="' + last[0] + '" cy="' + last[1] + '" r="3" fill="' + COLORS.accent + '" />');
+    body.push('  <path d="M' + points.join(" L") + '" fill="none" stroke="' + theme.accent + '" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round" />');
+    body.push('  <circle cx="' + last[0] + '" cy="' + last[1] + '" r="3" fill="' + theme.accent + '" />');
   }
 
   const total = series.reduce((sum, item) => sum + item.total, 0);
@@ -381,18 +380,24 @@ if (!TOKEN) {
 }
 
 const config = await loadConfig();
-const [days, languageSizes] = await Promise.all([fetchContributionDays(), fetchLanguageSizes()]);
-if (days.length === 0) throw new Error("The contribution calendar came back empty.");
+const files = {};
 
+const days = await fetchContributionDays();
+if (days.length === 0) throw new Error("The contribution calendar came back empty.");
 const summary = summarize(days);
-const languages = rankLanguages(languageSizes, config.languages);
-const files = {
-  "languages.svg": renderLanguages(languages, config.languages),
-  "activity.svg": renderActivity(summary, buildSeries(days, config.chart), config.chart),
-};
+const series = buildSeries(days, config.chart);
+for (const [name, theme] of Object.entries(THEMES)) files["activity-" + name + ".svg"] = renderActivity(summary, series, config.chart, theme);
+console.log(statColumns(summary).map((column) => column.label + ": " + column.value + (column.unit ? " " + column.unit : "") + " (" + column.detail + ")").join("\n"));
+
+if (STATS_TOKEN) {
+  const result = await measureAuthoredLanguages({ token: STATS_TOKEN, importLimit: config.languages.importLimit, log: (message) => console.log(message) });
+  const ranking = rankLanguages(result.totals, config.languages);
+  if (ranking.total === 0) throw new Error("No authored code was found; check PROFILE_STATS_TOKEN.");
+  for (const [name, theme] of Object.entries(THEMES)) files["languages-" + name + ".svg"] = renderLanguages(ranking, result.repositoryCount, config.languages, theme);
+  console.log("Languages: " + ranking.languages.map((language) => language.name + " " + formatPercent(language.share)).join(", ") + " of " + formatNumber(ranking.total) + " lines");
+} else {
+  console.log("PROFILE_STATS_TOKEN is not set, so the languages plate keeps its previous version.");
+}
 
 await mkdir(OUTPUT_DIR, { recursive: true });
 for (const [name, svg] of Object.entries(files)) await writeFile(join(OUTPUT_DIR, name), svg, "utf8");
-
-console.log(statColumns(summary).map((column) => column.label + ": " + column.value + (column.unit ? " " + column.unit : "") + " (" + column.detail + ")").join("\n"));
-console.log("Languages: " + languages.map((language) => language.name + " " + (language.share * 100).toFixed(1) + "%").join(", "));

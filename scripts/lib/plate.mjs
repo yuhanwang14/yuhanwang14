@@ -1,21 +1,19 @@
 // Shared drawing helpers for the profile's SVG plates.
 //
-// The visual system follows yuhanwang.page: a graphite ground, lamplit-paper ink,
-// signal orange used only for live marks, Metropolitan Line (an open Johnston revival)
-// for display text, JetBrains Mono for small uppercase labels, and viewfinder corner
-// ticks instead of boxes. Fonts are subset and embedded so every visitor sees them.
+// The type and grammar follow yuhanwang.page: Metropolitan Line (an open Johnston revival)
+// for display text, JetBrains Mono for small uppercase labels, viewfinder corner ticks
+// instead of boxes, and signal orange only for live marks. Backgrounds stay transparent and
+// neutrals come from GitHub's own palette, so every plate sits on the page it is shown on.
+// Each plate renders once per GitHub theme; the README picks the right one with <picture>.
 
 import { readFileSync } from "node:fs";
 
 const FONT_DIR = new URL("../../assets/fonts/", import.meta.url);
 const METRICS = JSON.parse(readFileSync(new URL("metrics.json", FONT_DIR), "utf8"));
 
-export const COLORS = {
-  ground: "#151515",
-  ink: "#E8E5DE",
-  muted: "#A0A0A0",
-  hairline: "#2E2E2E",
-  accent: "#FF5A1F",
+export const THEMES = {
+  dark: { ink: "#f0f6fc", text: "#d1d7e0", muted: "#9198a1", tick: "#4d5561", rule: "#30363d", grid: "#262c36", accent: "#ff5a1f" },
+  light: { ink: "#1f2328", text: "#31373d", muted: "#59636e", tick: "#b7c0c9", rule: "#d1d9e0", grid: "#eef1f4", accent: "#e8501a" },
 };
 
 export const WIDTH = 840;
@@ -70,7 +68,7 @@ export function measure(content, font, size, tracking = 0) {
 }
 
 export function drawText(content, options) {
-  const { x, y, font = "display", size, fill = COLORS.ink, opacity, anchor = "start", tracking = 0, className, extra } = options;
+  const { x, y, font = "display", size, fill, opacity, anchor = "start", tracking = 0, className, extra } = options;
   const { xs, width } = measure(content, font, size, tracking);
   const shift = anchor === "middle" ? width / 2 : anchor === "end" ? width : 0;
   const parts = [
@@ -87,10 +85,10 @@ export function drawText(content, options) {
 
 // Small uppercase mono label, the way the site labels its clocks and frames.
 export function drawLabel(content, options) {
-  return drawText(content.toUpperCase(), Object.assign({ font: "mono", size: 10, tracking: 1.5, opacity: 0.55 }, options));
+  return drawText(content.toUpperCase(), Object.assign({ font: "mono", size: 10, tracking: 1.5, fill: options.theme.muted }, options));
 }
 
-export function drawFrame(width, height, labels = {}) {
+export function drawFrame(width, height, theme, labels = {}) {
   const inset = 14.5;
   const arm = 14;
   const right = width - inset;
@@ -101,9 +99,9 @@ export function drawFrame(width, height, labels = {}) {
     "M" + inset + " " + (bottom - arm) + "V" + bottom + "H" + (inset + arm),
     "M" + (right - arm) + " " + bottom + "H" + right + "V" + (bottom - arm),
   ].join(" ");
-  const out = ['  <path d="' + ticks + '" fill="none" stroke="' + COLORS.ink + '" stroke-opacity="0.3" stroke-width="1" />'];
-  if (labels.topLeft) out.push("  " + drawLabel(labels.topLeft, { x: MARGIN, y: 33 }));
-  if (labels.topRight) out.push("  " + drawLabel(labels.topRight, { x: width - MARGIN, y: 33, anchor: "end" }));
+  const out = ['  <path d="' + ticks + '" fill="none" stroke="' + theme.tick + '" stroke-width="1" />'];
+  if (labels.topLeft) out.push("  " + drawLabel(labels.topLeft, { theme, x: MARGIN, y: 33 }));
+  if (labels.topRight) out.push("  " + drawLabel(labels.topRight, { theme, x: width - MARGIN, y: 33, anchor: "end" }));
   return out;
 }
 
@@ -123,7 +121,6 @@ export function svgDocument({ width, height, title, description, style = "", bod
     "    .mono { font-family: '" + FONTS.mono.family + "', " + FONTS.mono.fallback + "; }",
     style,
     "  </style>",
-    '  <rect width="' + width + '" height="' + height + '" fill="' + COLORS.ground + '" />',
   ]
     .concat(body)
     .concat(["</svg>", ""])

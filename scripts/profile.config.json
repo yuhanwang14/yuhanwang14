@@ -8,7 +8,8 @@
   },
   "languages": {
     "count": 8,
-    "exclude": ["Markdown", "MDX", "TeX", "Jupyter Notebook", "HTML", "CSS", "SCSS", "Makefile", "CMake", "Dockerfile", "Batchfile"],
+    "importLimit": 8000,
+    "exclude": ["Markdown", "MDX", "TeX", "Typst", "Jupyter Notebook", "HTML", "CSS", "SCSS", "Sass", "Less", "Makefile", "CMake", "Dockerfile", "Batchfile"],
     "tools": ["PyTorch", "React", "Docker", "Git", "Linux"]
   }
 }
