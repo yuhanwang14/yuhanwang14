@@ -5,13 +5,6 @@
 <a href="https://yuhanwang.page/"><img src="assets/link-website.svg?v=2" alt="Yuhan Wang's website" /></a>&nbsp;&nbsp;
 <a href="https://www.linkedin.com/in/yuhan-wang-5546832a2/"><img src="assets/link-linkedin.svg?v=2" alt="Yuhan Wang on LinkedIn" /></a>
 
-<!--
-### Projects
-
-<a href="https://github.com/yuhanwang14/PAGE-4D"><img width="49%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/cards/page-4d.svg" alt="PAGE-4D repository card" /></a>
-<a href="https://github.com/yuhanwang14/Obsidian-Operator"><img width="49%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/cards/obsidian-operator.svg" alt="Obsidian-Operator repository card" /></a>
--->
-
 ---
 
 <picture>
@@ -37,8 +30,11 @@
 
 ### GitHub Activity
 
-<img width="38%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/stats.svg" alt="Yuhan Wang's GitHub stats" />
-<img width="58%" src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/streak.svg" alt="Yuhan Wang's GitHub contribution streak" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/activity-dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/activity-light.svg" />
+  <img src="https://raw.githubusercontent.com/yuhanwang14/yuhanwang14/output/activity-light.svg" alt="Contributions in the last 365 days, active days, current streak, and longest streak" />
+</picture>
 
 <br/>
 
