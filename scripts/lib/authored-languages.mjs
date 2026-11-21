@@ -15,6 +15,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { compileToolRules, detectTools } from "./authored-tools.mjs";
 
 const run = promisify(execFile);
 
@@ -124,8 +125,10 @@ async function mapLimit(items, limit, worker) {
   return results;
 }
 
-export async function measureAuthoredLanguages({ token, importLimit = 8000, log = () => {} }) {
+export async function measureAuthoredLanguages({ token, importLimit = 8000, toolMap = {}, log = () => {} }) {
   const graphql = createGraphql(token);
+  const toolRules = compileToolRules(toolMap);
+  const isSkipped = (path) => SKIP_DIRECTORY.test(path) || SKIP_FILE.test(path);
   const { repositories, emails } = await listRepositories(graphql);
   log("Repositories with authored commits: " + repositories.length + "; author emails: " + emails.length);
 
@@ -140,6 +143,8 @@ export async function measureAuthoredLanguages({ token, importLimit = 8000, log 
   });
   const seen = new Set();
   const totals = new Map();
+  const toolCounts = new Map();
+  const toolRepositories = new Map();
   let skippedImports = 0;
   let countedCommits = 0;
   let failed = 0;
@@ -152,15 +157,20 @@ export async function measureAuthoredLanguages({ token, importLimit = 8000, log 
         const args = ["-C", directory, "log", "--no-merges", "--numstat", "--format=@@%H", "--fixed-strings", "-i"];
         for (const email of emails) args.push("--author=" + email);
         const { stdout } = await run("git", args, { env: gitEnv, maxBuffer: 1 << 28 });
-        return { repository, stdout };
+        const tools = await detectTools({ directory, rules: toolRules, skip: isSkipped }).catch(() => new Set());
+        return { repository, stdout, tools };
       } catch (error) {
         failed += 1;
         log("A repository could not be read (git exit code " + (typeof error.code === "number" ? error.code : "unknown") + ").");
-        return { repository, stdout: "" };
+        return { repository, stdout: "", tools: new Set() };
       }
     });
 
-    for (const { repository, stdout } of logs) {
+    for (const { repository, stdout, tools } of logs) {
+      for (const tool of tools) {
+        toolCounts.set(tool, (toolCounts.get(tool) || 0) + 1);
+        toolRepositories.set(tool, [...(toolRepositories.get(tool) || []), repository.name]);
+      }
       let commit = null;
       const flush = () => {
         if (!commit || seen.has(commit.sha)) return;
@@ -196,5 +206,5 @@ export async function measureAuthoredLanguages({ token, importLimit = 8000, log 
   }
 
   log("Counted commits: " + countedCommits + "; bulk imports skipped: " + skippedImports + "; repositories that failed to clone: " + failed);
-  return { totals, repositoryCount: repositories.length - failed, commitCount: countedCommits };
+  return { totals, tools: toolCounts, toolRepositories, repositoryCount: repositories.length - failed, commitCount: countedCommits };
 }

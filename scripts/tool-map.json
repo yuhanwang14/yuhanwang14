@@ -1,0 +1,97 @@
+{
+  "dependencies": {
+    "torch": "PyTorch",
+    "pytorch": "PyTorch",
+    "tensorflow": "TensorFlow",
+    "jax": "JAX",
+    "transformers": "Transformers",
+    "vllm": "vLLM",
+    "langchain": "LangChain",
+    "llama-index": "LlamaIndex",
+    "openai": "OpenAI API",
+    "anthropic": "Anthropic API",
+    "fastapi": "FastAPI",
+    "django": "Django",
+    "flask": "Flask",
+    "streamlit": "Streamlit",
+    "gradio": "Gradio",
+    "pydantic": "Pydantic",
+    "sqlalchemy": "SQLAlchemy",
+    "numpy": "NumPy",
+    "pandas": "pandas",
+    "scipy": "SciPy",
+    "scikit-learn": "scikit-learn",
+    "matplotlib": "Matplotlib",
+    "opencv-python": "OpenCV",
+    "opencv-contrib-python": "OpenCV",
+    "open3d": "Open3D",
+    "mujoco": "MuJoCo",
+    "pytest": "pytest",
+    "psycopg2": "PostgreSQL",
+    "psycopg": "PostgreSQL",
+    "asyncpg": "PostgreSQL",
+    "redis": "Redis",
+    "wandb": "Weights & Biases",
+    "flutter": "Flutter",
+    "flutter_riverpod": "Riverpod",
+    "tokio": "Tokio",
+    "axum": "Axum",
+    "actix-web": "Actix Web",
+    "ratatui": "Ratatui",
+    "github.com/gin-gonic/gin": "Gin",
+    "google.golang.org/grpc": "gRPC",
+    "org.springframework.boot": "Spring Boot",
+    "akka-actor": "Akka",
+    "akka-stream": "Akka",
+    "akka-http": "Akka",
+    "spark-core": "Apache Spark",
+    "rails": "Ruby on Rails",
+    "laravel/framework": "Laravel",
+    "boost": "Boost",
+    "gtest": "GoogleTest",
+    "googletest": "GoogleTest"
+  },
+  "npm": {
+    "react": "React",
+    "react-native": "React Native",
+    "next": "Next.js",
+    "vue": "Vue",
+    "svelte": "Svelte",
+    "astro": "Astro",
+    "express": "Express",
+    "tailwindcss": "Tailwind CSS",
+    "three": "Three.js",
+    "d3": "D3.js",
+    "vite": "Vite",
+    "electron": "Electron",
+    "@prisma/client": "Prisma",
+    "@mui/material": "Material UI",
+    "framer-motion": "Framer Motion",
+    "gsap": "GSAP",
+    "vitest": "Vitest",
+    "jest": "Jest"
+  },
+  "presence": [
+    {
+      "path": "(^|/)Dockerfile(\\.[^/]*)?$",
+      "tool": "Docker"
+    },
+    {
+      "path": "(^|/)(docker-)?compose\\.ya?ml$",
+      "tool": "Docker"
+    },
+    {
+      "path": "^\\.github/workflows/[^/]+\\.ya?ml$",
+      "tool": "GitHub Actions"
+    },
+    {
+      "path": "(^|/)package\\.xml$",
+      "content": "ament|catkin",
+      "tool": "ROS"
+    },
+    {
+      "path": "\\.tf$",
+      "tool": "Terraform"
+    }
+  ]
+}

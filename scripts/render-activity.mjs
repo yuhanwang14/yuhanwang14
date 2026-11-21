@@ -18,7 +18,10 @@
 //   languages.count         how many languages to list (2-8)
 //   languages.importLimit   commits adding more lines than this count as bulk imports
 //   languages.exclude       language names left out of the shares
-//   languages.tools         frameworks and tools listed under the languages
+//   tools.count             how many tools to list (2-12)
+//   tools.minRepos          a tool must appear in this many repositories (1-50)
+//   tools.exclude           tool names left out
+//   tools.pin               tools always listed after the detected ones, e.g. Linux
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -34,7 +37,8 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 const DEFAULTS = {
   chart: { bucket: "week", periods: 52, showBars: true, line: "average", averageWindow: 4 },
-  languages: { count: 8, importLimit: 8000, exclude: [], tools: [] },
+  languages: { count: 8, importLimit: 8000, exclude: [] },
+  tools: { count: 10, minRepos: 2, exclude: [], pin: [] },
 };
 
 // ---------------------------------------------------------------- data
@@ -101,7 +105,10 @@ async function loadConfig() {
   chart.averageWindow = clamp(chart.averageWindow, 2, 52, DEFAULTS.chart.averageWindow);
   languages.count = clamp(languages.count, 2, 8, DEFAULTS.languages.count);
   languages.importLimit = clamp(languages.importLimit, 500, 1000000, DEFAULTS.languages.importLimit);
-  return { chart, languages };
+  const tools = Object.assign({}, DEFAULTS.tools, overrides.tools);
+  tools.count = clamp(tools.count, 2, 12, DEFAULTS.tools.count);
+  tools.minRepos = clamp(tools.minRepos, 1, 50, DEFAULTS.tools.minRepos);
+  return { chart, languages, tools };
 }
 
 function clamp(value, min, max, fallback) {
@@ -147,7 +154,37 @@ function rankLanguages(totals, config) {
   };
 }
 
-function renderLanguages(ranking, repositoryCount, config, theme) {
+// Tools come from the repositories' own manifests: those present in enough repositories,
+// most widespread first, then the pinned tools that were not detected.
+function rankTools(toolCounts, config) {
+  const excluded = new Set(config.exclude);
+  const detected = [...toolCounts.entries()]
+    .filter(([name, count]) => count >= config.minRepos && !excluded.has(name))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name]) => name);
+  const pinned = config.pin.filter((name) => !excluded.has(name) && !detected.includes(name));
+  return detected.slice(0, Math.max(config.count - pinned.length, 0)).concat(pinned);
+}
+
+// The tools row wraps onto at most two lines; tools that do not fit in two lines are dropped.
+function layoutTools(names) {
+  const available = WIDTH - 2 * MARGIN - 90 - 8;
+  const lines = [];
+  let current = [];
+  for (const name of names) {
+    const candidate = current.concat(name).join("  ·  ");
+    if (current.length === 0 || measure(candidate, "display", 18).width <= available) {
+      current.push(name);
+    } else {
+      lines.push(current);
+      current = [name];
+    }
+  }
+  if (current.length) lines.push(current);
+  return lines.slice(0, 2);
+}
+
+function renderLanguages(ranking, repositoryCount, tools, theme) {
   const { languages, total } = ranking;
   const columns = 2;
   const columnWidth = 340;
@@ -156,7 +193,8 @@ function renderLanguages(ranking, repositoryCount, config, theme) {
   const rowHeight = 52;
   const firstBaseline = 84;
   const toolsBaseline = firstBaseline + rows * rowHeight + 22;
-  const height = toolsBaseline + (config.tools.length ? 48 : 10);
+  const toolLines = layoutTools(tools);
+  const height = toolsBaseline + (toolLines.length ? 48 + (toolLines.length - 1) * 28 : 10);
   const summary = formatCompact(total) + " lines written · " + repositoryCount + " repositories";
 
   const body = drawFrame(WIDTH, height, theme, { topLeft: "Languages", topRight: summary });
@@ -173,17 +211,17 @@ function renderLanguages(ranking, repositoryCount, config, theme) {
       '  <rect x="' + x + '" y="' + (y + 12) + '" width="' + round(Math.max(2, columnWidth * language.share)) + '" height="2" fill="' + theme.ink + '" fill-opacity="0.85" />',
     );
   });
-  if (config.tools.length) {
+  if (toolLines.length) {
     body.push(
       '  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="' + (toolsBaseline - 28.5) + '" y2="' + (toolsBaseline - 28.5) + '" stroke="' + theme.rule + '" />',
       "  " + drawLabel("Tools", { theme, x: MARGIN, y: toolsBaseline - 1 }),
-      "  " + drawText(config.tools.join("  ·  "), { x: MARGIN + 90, y: toolsBaseline, size: 18, fill: theme.text }),
+      ...toolLines.map((line, index) => "  " + drawText(line.join("  ·  "), { x: MARGIN + 90, y: toolsBaseline + index * 28, size: 18, fill: theme.text })),
     );
   }
 
   const description = "Lines of code written, by language: " +
     languages.map((language) => language.name + " " + formatPercent(language.share) + " (" + formatNumber(language.lines) + " lines)").join(", ") +
-    ". " + formatNumber(total) + " lines across " + repositoryCount + " repositories." + (config.tools.length ? " Tools: " + config.tools.join(", ") + "." : "");
+    ". " + formatNumber(total) + " lines across " + repositoryCount + " repositories." + (toolLines.length ? " Tools: " + toolLines.flat().join(", ") + "." : "");
   return svgDocument({ width: WIDTH, height, title: "Languages I have written", description, body });
 }
 
@@ -390,10 +428,13 @@ for (const [name, theme] of Object.entries(THEMES)) files["activity-" + name + "
 console.log(statColumns(summary).map((column) => column.label + ": " + column.value + (column.unit ? " " + column.unit : "") + " (" + column.detail + ")").join("\n"));
 
 if (STATS_TOKEN) {
-  const result = await measureAuthoredLanguages({ token: STATS_TOKEN, importLimit: config.languages.importLimit, log: (message) => console.log(message) });
+  const toolMap = JSON.parse(await readFile(new URL("./tool-map.json", import.meta.url), "utf8"));
+  const result = await measureAuthoredLanguages({ token: STATS_TOKEN, importLimit: config.languages.importLimit, toolMap, log: (message) => console.log(message) });
   const ranking = rankLanguages(result.totals, config.languages);
+  const toolNames = rankTools(result.tools, config.tools);
+  console.log("Tools: " + (toolNames.join(", ") || "none"));
   if (ranking.total === 0) throw new Error("No authored code was found; check PROFILE_STATS_TOKEN.");
-  for (const [name, theme] of Object.entries(THEMES)) files["languages-" + name + ".svg"] = renderLanguages(ranking, result.repositoryCount, config.languages, theme);
+  for (const [name, theme] of Object.entries(THEMES)) files["languages-" + name + ".svg"] = renderLanguages(ranking, result.repositoryCount, toolNames, theme);
   console.log("Languages: " + ranking.languages.map((language) => language.name + " " + formatPercent(language.share)).join(", ") + " of " + formatNumber(ranking.total) + " lines");
 } else {
   console.log("PROFILE_STATS_TOKEN is not set, so the languages plate keeps its previous version.");
