@@ -1,13 +1,17 @@
 // Renders the data plates of the profile README, once per GitHub theme.
 //
-// Usage: GITHUB_TOKEN=<token> [PROFILE_STATS_TOKEN=<token>] node scripts/render-activity.mjs [output-dir]
+// Usage: GITHUB_TOKEN=<token> [PROFILE_STATS_TOKEN=<token>] [PROFILE_REPO_CACHE=<dir>] node scripts/render-activity.mjs [output-dir]
 // Writes activity-{dark,light}.svg, and languages-{dark,light}.svg when PROFILE_STATS_TOKEN is set.
+// PROFILE_REPO_CACHE keeps the repository clones between local runs.
 //
 // Activity numbers come from the public contribution calendar, the same green grid any
 // visitor sees on the profile, so GITHUB_TOKEN is enough for them.
 // Language shares count the lines the account has written itself, across every repository
 // PROFILE_STATS_TOKEN can read, private and organization repositories included
 // (see lib/authored-languages.mjs). Without that token the languages plate is left as it was.
+// The stack under the languages lists the tools that code imports, grouped as in
+// scripts/tool-map.json and ranked by the lines written in files that use each one
+// (see lib/authored-tools.mjs).
 //
 // scripts/profile.config.json controls both plates:
 //   chart.bucket            "day" | "week" | "month"     size of each bar
@@ -18,10 +22,10 @@
 //   languages.count         how many languages to list (2-8)
 //   languages.importLimit   commits adding more lines than this count as bulk imports
 //   languages.exclude       language names left out of the shares
-//   tools.count             how many tools to list (2-12)
-//   tools.minRepos          a tool must appear in this many repositories (1-50)
+//   tools.perGroup          tools per group, most used first (1-4)
+//   tools.groups            most groups to show (1-8); the groups with the fewest lines go first
+//   tools.minLines          lines a tool needs, written in files that use it, to be listed
 //   tools.exclude           tool names left out
-//   tools.pin               tools always listed after the detected ones, e.g. Linux
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -31,6 +35,7 @@ import { MARGIN, THEMES, WIDTH, drawFrame, drawLabel, drawText, measure, round, 
 const LOGIN = process.env.PROFILE_LOGIN || "yuhanwang14";
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
 const STATS_TOKEN = process.env.PROFILE_STATS_TOKEN;
+const REPO_CACHE = process.env.PROFILE_REPO_CACHE || null;
 const OUTPUT_DIR = process.argv[2] || "dist";
 const CONFIG_URL = new URL("./profile.config.json", import.meta.url);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -38,7 +43,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const DEFAULTS = {
   chart: { bucket: "week", periods: 52, showBars: true, line: "average", averageWindow: 4 },
   languages: { count: 8, importLimit: 8000, exclude: [] },
-  tools: { count: 10, minRepos: 2, exclude: [], pin: [] },
+  tools: { perGroup: 4, groups: 8, minLines: 1500, exclude: [] },
 };
 
 // ---------------------------------------------------------------- data
@@ -106,8 +111,10 @@ async function loadConfig() {
   languages.count = clamp(languages.count, 2, 8, DEFAULTS.languages.count);
   languages.importLimit = clamp(languages.importLimit, 500, 1000000, DEFAULTS.languages.importLimit);
   const tools = Object.assign({}, DEFAULTS.tools, overrides.tools);
-  tools.count = clamp(tools.count, 2, 12, DEFAULTS.tools.count);
-  tools.minRepos = clamp(tools.minRepos, 1, 50, DEFAULTS.tools.minRepos);
+  tools.perGroup = clamp(tools.perGroup, 1, 4, DEFAULTS.tools.perGroup);
+  tools.groups = clamp(tools.groups, 1, 8, DEFAULTS.tools.groups);
+  tools.minLines = clamp(tools.minLines, 0, 10000000, DEFAULTS.tools.minLines);
+  tools.exclude = Array.isArray(tools.exclude) ? tools.exclude : [];
   return { chart, languages, tools };
 }
 
@@ -154,37 +161,36 @@ function rankLanguages(totals, config) {
   };
 }
 
-// Tools come from the repositories' own manifests: those present in enough repositories,
-// most widespread first, then the pinned tools that were not detected.
-function rankTools(toolCounts, config) {
+// Groups keep the order of tool-map.json and list their tools by lines written with them.
+// A group with no tool above minLines is left out; when more groups qualify than the config
+// allows, the groups whose top tool has the fewest lines go.
+function rankTools(weights, toolMap, config) {
   const excluded = new Set(config.exclude);
-  const detected = [...toolCounts.entries()]
-    .filter(([name, count]) => count >= config.minRepos && !excluded.has(name))
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([name]) => name);
-  const pinned = config.pin.filter((name) => !excluded.has(name) && !detected.includes(name));
-  return detected.slice(0, Math.max(config.count - pinned.length, 0)).concat(pinned);
+  const groupOf = new Map((toolMap.tools || []).map((tool) => [tool.name, tool.group]));
+  const groups = (toolMap.groups || [])
+    .map((name) => {
+      const ranked = [...weights.entries()]
+        .filter(([tool, weight]) => groupOf.get(tool) === name && weight.lines >= config.minLines && !excluded.has(tool))
+        .sort((a, b) => b[1].lines - a[1].lines || a[0].localeCompare(b[0]))
+        .slice(0, config.perGroup);
+      return { name, tools: ranked.map(([tool]) => tool), lead: ranked.length ? ranked[0][1].lines : 0 };
+    })
+    .filter((group) => group.tools.length > 0);
+  const kept = new Set([...groups].sort((a, b) => b.lead - a.lead).slice(0, config.groups).map((group) => group.name));
+  return groups.filter((group) => kept.has(group.name));
 }
 
-// The tools row wraps onto at most two lines; tools that do not fit in two lines are dropped.
-function layoutTools(names) {
-  const available = WIDTH - 2 * MARGIN - 90 - 8;
-  const lines = [];
-  let current = [];
-  for (const name of names) {
-    const candidate = current.concat(name).join("  ·  ");
-    if (current.length === 0 || measure(candidate, "display", 18).width <= available) {
-      current.push(name);
-    } else {
-      lines.push(current);
-      current = [name];
-    }
-  }
-  if (current.length) lines.push(current);
-  return lines.slice(0, 2);
+// The stack is a table: group labels in the left column, tools on a grid of fixed columns
+// whose third column lines up with the second column of languages above.
+const STACK = { x: MARGIN + 100, column: 160, rowHeight: 30, size: 17 };
+
+function stackFontSize(groups) {
+  const widest = Math.max(0, ...groups.flatMap((group) => group.tools.map((tool) => measure(tool, "display", STACK.size).width)));
+  const room = STACK.column - 20;
+  return widest > room ? Math.floor((STACK.size * room) / widest) : STACK.size;
 }
 
-function renderLanguages(ranking, repositoryCount, tools, theme) {
+function renderLanguages(ranking, repositoryCount, stack, theme) {
   const { languages, total } = ranking;
   const columns = 2;
   const columnWidth = 340;
@@ -192,9 +198,10 @@ function renderLanguages(ranking, repositoryCount, tools, theme) {
   const rows = Math.ceil(languages.length / columns);
   const rowHeight = 52;
   const firstBaseline = 84;
-  const toolsBaseline = firstBaseline + rows * rowHeight + 22;
-  const toolLines = layoutTools(tools);
-  const height = toolsBaseline + (toolLines.length ? 48 + (toolLines.length - 1) * 28 : 10);
+  const ruleY = firstBaseline + rows * rowHeight - 6.5;
+  const stackBaseline = ruleY + 36.5;
+  const stackSize = stackFontSize(stack);
+  const height = stack.length ? stackBaseline + (stack.length - 1) * STACK.rowHeight + 46 : ruleY + 16.5;
   const summary = formatCompact(total) + " lines written · " + repositoryCount + " repositories";
 
   const body = drawFrame(WIDTH, height, theme, { topLeft: "Languages", topRight: summary });
@@ -211,18 +218,22 @@ function renderLanguages(ranking, repositoryCount, tools, theme) {
       '  <rect x="' + x + '" y="' + (y + 12) + '" width="' + round(Math.max(2, columnWidth * language.share)) + '" height="2" fill="' + theme.ink + '" fill-opacity="0.85" />',
     );
   });
-  if (toolLines.length) {
-    body.push(
-      '  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="' + (toolsBaseline - 28.5) + '" y2="' + (toolsBaseline - 28.5) + '" stroke="' + theme.rule + '" />',
-      "  " + drawLabel("Tools", { theme, x: MARGIN, y: toolsBaseline - 1 }),
-      ...toolLines.map((line, index) => "  " + drawText(line.join("  ·  "), { x: MARGIN + 90, y: toolsBaseline + index * 28, size: 18, fill: theme.text })),
-    );
+  if (stack.length) {
+    body.push('  <line x1="' + MARGIN + '" x2="' + (WIDTH - MARGIN) + '" y1="' + ruleY + '" y2="' + ruleY + '" stroke="' + theme.rule + '" />');
+    stack.forEach((group, row) => {
+      const y = stackBaseline + row * STACK.rowHeight;
+      body.push("  " + drawLabel(group.name, { theme, x: MARGIN, y: y - 1 }));
+      group.tools.forEach((tool, column) => {
+        body.push("  " + drawText(tool, { x: STACK.x + column * STACK.column, y, size: stackSize, fill: theme.text }));
+      });
+    });
   }
 
   const description = "Lines of code written, by language: " +
     languages.map((language) => language.name + " " + formatPercent(language.share) + " (" + formatNumber(language.lines) + " lines)").join(", ") +
-    ". " + formatNumber(total) + " lines across " + repositoryCount + " repositories." + (toolLines.length ? " Tools: " + toolLines.flat().join(", ") + "." : "");
-  return svgDocument({ width: WIDTH, height, title: "Languages I have written", description, body });
+    ". " + formatNumber(total) + " lines across " + repositoryCount + " repositories." +
+    (stack.length ? " Stack, by lines written with each tool: " + stack.map((group) => group.name + ": " + group.tools.join(", ")).join("; ") + "." : "");
+  return svgDocument({ width: WIDTH, height, title: "Languages and tools I write code with", description, body });
 }
 
 // ---------------------------------------------------------------- activity plate
@@ -429,12 +440,14 @@ console.log(statColumns(summary).map((column) => column.label + ": " + column.va
 
 if (STATS_TOKEN) {
   const toolMap = JSON.parse(await readFile(new URL("./tool-map.json", import.meta.url), "utf8"));
-  const result = await measureAuthoredLanguages({ token: STATS_TOKEN, importLimit: config.languages.importLimit, toolMap, log: (message) => console.log(message) });
+  const result = await measureAuthoredLanguages({ token: STATS_TOKEN, importLimit: config.languages.importLimit, toolMap, cacheDirectory: REPO_CACHE, log: (message) => console.log(message) });
   const ranking = rankLanguages(result.totals, config.languages);
-  const toolNames = rankTools(result.tools, config.tools);
-  console.log("Tools: " + (toolNames.join(", ") || "none"));
+  const stack = rankTools(result.tools, toolMap, config.tools);
+  console.log("Tools by lines written in files that use them: " +
+    ([...result.tools.entries()].sort((a, b) => b[1].lines - a[1].lines).map(([tool, weight]) => tool + " " + formatCompact(weight.lines) + "/" + weight.repositories).join(", ") || "none"));
+  console.log("Stack: " + (stack.map((group) => group.name + ": " + group.tools.join(", ")).join("; ") || "none"));
   if (ranking.total === 0) throw new Error("No authored code was found; check PROFILE_STATS_TOKEN.");
-  for (const [name, theme] of Object.entries(THEMES)) files["languages-" + name + ".svg"] = renderLanguages(ranking, result.repositoryCount, toolNames, theme);
+  for (const [name, theme] of Object.entries(THEMES)) files["languages-" + name + ".svg"] = renderLanguages(ranking, result.repositoryCount, stack, theme);
   console.log("Languages: " + ranking.languages.map((language) => language.name + " " + formatPercent(language.share)).join(", ") + " of " + formatNumber(ranking.total) + " lines");
 } else {
   console.log("PROFILE_STATS_TOKEN is not set, so the languages plate keeps its previous version.");

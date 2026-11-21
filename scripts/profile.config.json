@@ -12,9 +12,9 @@
     "exclude": ["Markdown", "MDX", "TeX", "Typst", "Jupyter Notebook", "HTML", "CSS", "SCSS", "Sass", "Less", "Makefile", "CMake", "Dockerfile", "Batchfile"]
   },
   "tools": {
-    "count": 10,
-    "minRepos": 2,
-    "exclude": [],
-    "pin": ["Linux"]
+    "perGroup": 4,
+    "groups": 8,
+    "minLines": 1500,
+    "exclude": []
   }
 }
