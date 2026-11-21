@@ -8,6 +8,9 @@ on:
       - scripts/**
       - .github/workflows/profile-assets.yml
   schedule:
+    # Activity refreshes every three hours so the streaks and chart stay current.
+    - cron: "0 */3 * * *"
+    # Languages refresh once a day; they clone every repository, which takes minutes.
     - cron: "0 0 * * *"
   workflow_dispatch:
 
@@ -37,13 +40,13 @@ jobs:
           node-version: 22
 
       # Activity uses the public contribution calendar. Languages need PROFILE_STATS_TOKEN,
-      # a token that can read private and organization repositories; without it the
-      # previous languages plate is kept.
+      # a token that can read private and organization repositories. The token is withheld
+      # on the three-hourly runs, so those keep the previous languages plate.
       - name: Render activity and languages plates
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROFILE_STATS_TOKEN: ${{ secrets.PROFILE_STATS_TOKEN }}
+          PROFILE_STATS_TOKEN: ${{ (github.event.schedule != '0 */3 * * *') && secrets.PROFILE_STATS_TOKEN || '' }}
           PROFILE_LOGIN: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
