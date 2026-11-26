@@ -1,4 +1,4 @@
-// Renders the static plates at the top of the profile README: the hero and the link buttons,
+// Renders the static plates at the top of the profile README: the hero and the links under it,
 // once for GitHub's dark theme and once for its light theme.
 //
 // Usage: node scripts/render-static.mjs
@@ -10,7 +10,7 @@
 // ink colour and the page background shows through everywhere else.
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { MARGIN, THEMES, WIDTH, arrowPath, drawFrame, drawLabel, drawText, measure, round, svgDocument } from "./lib/plate.mjs";
+import { MARGIN, THEMES, WIDTH, arrowPath, drawFrame, drawText, measure, round, svgDocument } from "./lib/plate.mjs";
 
 const ASSETS = new URL("../assets/", import.meta.url);
 
@@ -20,9 +20,17 @@ const FOCUS_LINES = [
   "Agentic Framework | Quantitative Trading",
 ];
 const LINKS = [
-  { slug: "website", label: "Website", title: "Yuhan Wang's website" },
+  { slug: "website", label: "yuhanwang.page", title: "Yuhan Wang's website" },
   { slug: "linkedin", label: "LinkedIn", title: "Yuhan Wang on LinkedIn" },
 ];
+
+// The links sit under the hero's bottom-right corner, the way yuhanwang.page sets its social
+// links across from the name: uppercase display type, an arrow, no box. Each link is its own
+// image, padded so that a right-aligned row has 24px between links and ends on the plates' text
+// edge. GitHub centres the 840px plates in an 846px column, hence 3px more than MARGIN.
+const LINK_TYPE = { size: 13, tracking: 1.56 };
+const LINK_GAP = 12;
+const LINK_END = MARGIN + 3;
 
 const HEIGHT = 400;
 const SWEEP = { begin: 0.15, duration: 1.8, distance: WIDTH + 60 };
@@ -134,24 +142,30 @@ function renderHero(theme) {
   });
 }
 
-function renderLink(link, theme) {
-  const width = 168;
-  const height = 44;
+// Text near the top of the image, so the row reads as the hero's caption rather than a
+// heading for the plate below.
+function renderLink(link, theme, isLast) {
+  const label = link.label.toUpperCase();
+  const textWidth = measure(label, "display", LINK_TYPE.size, LINK_TYPE.tracking).width;
+  const arrow = 7;
+  const arrowX = LINK_GAP + textWidth + 8;
+  const width = Math.ceil(arrowX + arrow + (isLast ? LINK_END : LINK_GAP));
+  const height = 32;
+  const baseline = 15;
   return svgDocument({
     width,
     height,
     title: link.title,
-    description: link.label,
+    description: link.label + " ↗",
     body: [
-      '  <rect x="0.5" y="0.5" width="' + (width - 1) + '" height="' + (height - 1) + '" fill="none" stroke="' + theme.rule + '" />',
-      "  " + drawLabel(link.label, { theme, x: 18, y: 26, size: 11, tracking: 1.8, fill: theme.text }),
-      '  <path d="' + arrowPath(width - 28, 17, 9) + '" fill="none" stroke="' + theme.muted + '" stroke-width="1.25" />',
+      "  " + drawText(label, { x: LINK_GAP, y: baseline, size: LINK_TYPE.size, tracking: LINK_TYPE.tracking, fill: theme.text }),
+      '  <path d="' + arrowPath(round(arrowX), baseline - arrow - 0.5, arrow) + '" fill="none" stroke="' + theme.muted + '" stroke-width="1.2" />',
     ],
   });
 }
 
 for (const [name, theme] of Object.entries(THEMES)) {
   writeFileSync(new URL("hero-" + name + ".svg", ASSETS), renderHero(theme));
-  for (const link of LINKS) writeFileSync(new URL("link-" + link.slug + "-" + name + ".svg", ASSETS), renderLink(link, theme));
+  LINKS.forEach((link, index) => writeFileSync(new URL("link-" + link.slug + "-" + name + ".svg", ASSETS), renderLink(link, theme, index === LINKS.length - 1)));
 }
-console.log("Wrote the hero and " + LINKS.length + " link buttons for " + Object.keys(THEMES).length + " themes.");
+console.log("Wrote the hero and " + LINKS.length + " links for " + Object.keys(THEMES).length + " themes.");
